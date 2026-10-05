@@ -11,6 +11,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 오픈소스 정책: `docs/Upstream_Extension_Policy.md`
 - 참고 자료: `docs/References_OpenSource_Papers.md`
 - **마일스톤(MVP / Post-MVP)**: `docs/Milestones.md`
+- Block API(결과 계약, 버퍼 모델): `docs/Block_API.md`
 - MVP 프로토콜 범위: `docs/OpenVPN_Interop_Profile.md`
 - 위협 모델·키 관리·라이선스(clean-room): `docs/Threat_Model_and_Key_Management.md`
 - **전체 결정 기록: `docs/DECISIONS.md`** (@docs/DECISIONS.md)
@@ -52,10 +53,11 @@ tools/interop/lab.sh build/interop-lab 16   # 수정 없는 서버/클라이언�
 
 ## 코드 규칙
 
-- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`), `tests/`, `adapters/`, `third_party/`, `patches/`
+- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), `tests/`, `adapters/`, `third_party/`, `patches/`
 - `tests/unit|flow|regression/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
 - 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존
+- Block 결과 계약: `Drop`=입력 탓(사유 필수) / `Error`=우리 실패. Action은 Continue, Decision은 Yes/No. 새 block id는 재번호 금지
 - 보안: 키는 DSL/Flow에 직접 저장하지 않고 Key Reference로만 다룬다
 
 ## Git

@@ -25,7 +25,7 @@ else()
   endif()
 endif()
 
-file(GLOB PF_CORE_SRCS CONFIGURE_DEPENDS core/src/*.cpp)
+file(GLOB PF_CORE_SRCS CONFIGURE_DEPENDS core/src/*.cpp core/src/*/*.cpp)
 add_library(pf_core STATIC ${PF_CORE_SRCS})
 target_include_directories(pf_core PUBLIC core/include)
 target_link_libraries(pf_core PUBLIC pf_options)
