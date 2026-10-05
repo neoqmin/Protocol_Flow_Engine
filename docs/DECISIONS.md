@@ -33,6 +33,7 @@
 | D-026 | 2026-10-05 | **EKM 키 유도 레이아웃 확정**(실제 OpenVPN 2.6.19 서버로 검증): label `EXPORTER-OpenVPN-datakeys`, 컨텍스트 없음, **256바이트** export. 클라이언트 tx = key `[0:32]` + nonce tail `[64:72]`, rx = key `[128:160]` + tail `[192:200]`(서버는 반대). 근거: 서버 패킷의 모든 오프셋 조합 탐색에서 GCM 태그가 검증되는 조합이 유일, 서버가 우리 핑을 복호화해 수락, 오프셋을 틀리게 하면 상호운용 테스트 실패 | 확정 |
 | D-027 | 2026-10-05 | **제어 채널 상호운용 확정**: key-method 2 메시지(옵션·peer info 값)가 수정 없는 서버에 수락됨. 서버 응답은 옵션 뒤에 **선택 필드 3개**(username, password, peer info; 빈 값). 서버는 `REQUEST_PUSH` 광고 시 PUSH_REQUEST 없이 PUSH_REPLY를 보내고 `key-derivation tls-ekm`으로 협상(`protocol-flags` 아님). `IV_VER`는 구현한 프로토콜 수준인 `2.6.0`. **자동 상호운용 테스트**(`tests/protocol/run_interop.sh`, CTest 라벨 `protocol`, root 필요)와 CI `interop` 잡(초기 비차단)을 추가 | 확정 |
 | D-028 | 2026-10-05 | **재협상·keepalive 설계 확정(실제 서버로 검증)**: key_id별 `KeyState`(reliable+TLS 분리), 재협상은 SOFT_RESET으로 시작(서버/클라이언트 모두), key_id는 `0,1..7,1`로 순환, 키 교환 직후 TX 전환, **이전 키는 수신용 유예(기본 60초) 후 와이프·최대 1개**, 실패한 재협상은 폐기하고 이전 키 유지, 클라이언트도 `reneg_interval_ms`(기본 3600초) 후 시작. `KeepaliveTimer`: 마지막 송신 후 `ping`초에 핑, 마지막 수신 후 `ping-restart`초에 타임아웃. 상호운용 테스트에 `server-reneg`(8회 이상, 7→1 순환)·`client-reneg` 시나리오 추가. **A4는 별도 세션에서 진행** | 확정 |
+| D-029 | 2026-10-05 | **A4 Linux 통합 설계 확정**: (1) `TunnelSession`(코어, sans-I/O)이 ControlClient + RX/TX Flow + KeepaliveTimer를 묶고 소켓·TUN·시계는 모른다. (2) OS 의존 코드는 `platform/linux`(PAL: connected UDP, `IFF_TUN\|IFF_NO_PI` TUN, ioctl 주소/MTU/라우트)로 격리, 코어는 PAL을 참조하지 않는다. (3) TUN은 PUSH_REPLY 이후에 생성·설정, MTU는 `min(푸시 tun-mtu, 1400)`(IP 단편화 회피). (4) 인증된 평문은 핑→keepalive, IP(4/6)→TUN, 그 외→폐기+집계. (5) **세션 사망(제어 실패/ping-restart)은 클라이언트가 종료 코드 2로 끝내고 재연결은 상위 감독자가 맡는다**(MVP에서 자동 재연결 상태머신은 만들지 않음). 근거: 수정 없는 OpenVPN 2.6.19와 netns+실제 TUN으로 터널 ping(0% 손실, 재협상 중 포함). 상세: `docs/Linux_Client_Notes.md` | 확정 |
 
 ## 미결정 사항 (Open Questions)
 
@@ -41,7 +42,7 @@
 3. 모바일 TLS/암호 라이브러리 (BoringSSL 등) (PM-1) — 데스크톱 MVP는 OpenSSL 3.x(D-014)
 4. 플랫폼 지원 순서 (제안: Linux → Windows → Android → macOS → iOS)
 5. OpenVPN 연동 경계 조사: management interface vs DCO 경계 (PM-8)
-6. ~~남은 `[검증]` (exporter 등)~~ → D-026/D-027로 확정. 남은 것: 재협상(SOFT_RESET) 동작, 손실·지연 환경에서의 reliability 검증
+6. ~~남은 `[검증]` (exporter 등)~~ → D-026/D-027/D-028로 확정. 남은 것: 손실·지연 환경에서의 reliability 검증
 7. 성능 목표 수치 (MVP-A 기준선 측정 후), iOS 메모리 상한
 8. ~~오류 모델 / 버퍼 모델~~ → D-019 확정
 9. ~~에디터 사용자 범위~~ → D-023 확정 (역할 목록·승인 단계 세부는 PM-6 진입 시 설계)

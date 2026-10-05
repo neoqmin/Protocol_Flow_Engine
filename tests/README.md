@@ -9,7 +9,7 @@ TDD 원칙: **실패하는 테스트를 먼저 작성(Red) → 최소 구현(Gre
 |---|---|---|
 | `unit/` | Block 단위 테스트 (Parse, Replay, Crypto …) | `unit` |
 | `flow/` | RX/TX/Control/Error/Timeout Flow 테스트 | `flow` |
-| `protocol/` | 실제 OpenVPN Client/Server 상호운용 (`-DPF_PROTOCOL_TESTS=ON`) | `protocol` |
+| `protocol/` | 실제 OpenVPN Client/Server 상호운용 (`-DPF_PROTOCOL_TESTS=ON`): `run_interop.sh`(제어·데이터 채널), `run_tunnel.sh`(A4: 실제 TUN으로 터널 ping, 옵트인 1시간 soak). root 필요 | `protocol` |
 | `regression/` | Golden vector / 기존 OpenVPN 캡처와의 비교 | `regression` |
 | `performance/` | packet path 벤치마크 | `performance` |
 | `support/` | 의존성 없는 테스트 하니스 (모든 플랫폼 이식 가능) | - |

@@ -47,9 +47,9 @@ M0 하드닝 ✅
 | 단계 | 내용 | 종료 조건(테스트) |
 |---|---|---|
 | A1 ✅ | Block API, Flow Context, **오류 모델, 버퍼 모델(headroom/소유권)**, 정적 Flow 실행기 | unit/flow 테스트, API 문서 확정 (`docs/Block_API.md`) |
-| A2 | Data Plane Block: DATA_V2 파싱, AES-256-GCM, packet-id/replay | 실제 2.6 pcap 기반 golden 통과, replay·변조 패킷 거부 |
-| A3 | Control Plane (**일반 코드**, Flow 아님): reliability layer, tls-crypt, TLS 1.3(메모리 BIO), 키 유도, PUSH_REPLY 파싱, keepalive, 재협상 | 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 |
-| A4 | Linux UDP 소켓 + TUN 통합 | 터널 통해 ping 성공, 1시간 연결 + 재협상 1회 이상 통과 |
+| A2 ✅ | Data Plane Block: DATA_V2 파싱, AES-256-GCM, packet-id/replay | 실제 2.6 pcap 기반 golden 통과, replay·변조 패킷 거부 |
+| A3 ✅ | Control Plane (**일반 코드**, Flow 아님): reliability layer, tls-crypt, TLS 1.3(메모리 BIO), 키 유도, PUSH_REPLY 파싱, keepalive, 재협상 | 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 |
+| A4 ✅ | Linux UDP 소켓 + TUN 통합 (`TunnelSession` + `platform/linux` + `pf_client`, `docs/Linux_Client_Notes.md`) | 터널 통해 ping 성공, 1시간 연결 + 재협상 1회 이상 통과 |
 
 공통 종료 조건: 파서 fuzz/전수 테스트 통과, ASan/UBSan clean, **오픈소스 수정 0건**, 성능 **기준선(baseline) 측정 기록** (목표 수치는 기준선 후 확정).
 

@@ -2,14 +2,15 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05 (A3 완료)
+> 마지막 갱신: 2026-10-05 (A4 구현 완료, 1시간 soak 결과 대기)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
-- [ ] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결 (재협상 포함). **다른 세션에서 진행**
+- [~] **MVP-A / A4** — UDP 소켓 + TUN 통합 구현·터널 ping 완료, 1시간 soak 검증 중 ([docs/Linux_Client_Notes.md](docs/Linux_Client_Notes.md))
+- [ ] **MVP-A 공통 종료 조건** — 성능 기준선(OpenVPN 2.6 대비), fuzz/ASan 최종 확인
 
 ## 요약
 
@@ -17,7 +18,7 @@
 |---|---|
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
-| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1·A2 완료, A3 다음 |
+| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A3 완료, A4 구현 완료(soak 검증 중), 공통 종료 조건 남음 |
 | MVP-B TCP + 폴백 | ⬜ |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
@@ -96,11 +97,16 @@
 - [ ] keepalive(ping), 재협상(key_id 회전)
 - [x] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
-### A4 — Linux 통합
+### A4 — Linux 통합 ([docs/Linux_Client_Notes.md](docs/Linux_Client_Notes.md), D-029)
 
-- [ ] UDP 소켓 + TUN 장치 연동
-- [ ] 터널 ping 성공
-- [ ] 1시간 연결 + 재협상 1회 이상
+- [x] `TunnelSession` (코어, sans-I/O): ControlClient + RX/TX Flow + KeepaliveTimer 결합. 수신 분류(핑/IP/기타), 연결 전 트래픽 거부, 재협상 후 새 key_id 전환. 가짜 서버 11개 테스트 + 변이 5개 모두 검출
+- [x] Linux PAL `platform/linux`: connected UDP 소켓(논블로킹), TUN 장치(`IFF_TUN|IFF_NO_PI`), 주소/넷마스크/MTU/up, 푸시된 라우트
+- [x] `pf_client`: 이벤트 루프, PUSH_REPLY 후 TUN 설정, SIGINT/SIGTERM 정상 종료, 세션 사망 시 종료 코드 2(재연결은 상위 감독자)
+- [x] **터널 ping 성공** (수정 없는 OpenVPN 2.6.19, netns + 실제 TUN): 20회 + 1300바이트 ping 손실 0%, 주소·푸시 라우트 설치 확인
+- [x] **재협상 중 트래픽**: 서버가 2초마다 재협상(≥8회, key_id 7→1 순환)하는 동안 연속 ping 손실 0%
+- [x] 자동 테스트 `tests/protocol/run_tunnel.sh` (CTest `pf_tunnel_openvpn`, 라벨 `protocol`)
+- [~] **1시간 연결 + 재협상 1회 이상** (서버 기본 `reneg-sec 3600`, `PF_ONLY=soak PF_SOAK_SECONDS=3700`): 실행 중
+- [x] ASan/UBSan(-Werror) 빌드에서 unit/flow/regression 통과
 
 ### MVP-A 공통 종료 조건
 
