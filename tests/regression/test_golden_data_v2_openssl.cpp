@@ -18,10 +18,10 @@ static std::string trim(const std::string& s) {
     return a == std::string::npos ? "" : s.substr(a, b - a + 1);
 }
 
-struct Vec { std::vector<uint8_t> key, tail, wire, plain; int line; };
+namespace { struct DataVec { std::vector<uint8_t> key, tail, wire, plain; int line; }; }  // namespace (avoid ODR clash with other test files)
 
-static std::vector<Vec> load() {
-    std::vector<Vec> out;
+static std::vector<DataVec> load() {
+    std::vector<DataVec> out;
     std::ifstream f(std::string(GOLDEN_DIR) + "/data_v2_gcm.golden");
     PF_REQUIRE(f.good());
     std::string line; int n = 0;

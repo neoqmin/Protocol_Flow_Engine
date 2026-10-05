@@ -8,9 +8,9 @@
 # Generated keys/certs live in the output dir and are NEVER committed.
 #
 # usage: tools/interop/lab.sh [out_dir] [seconds] [extra server options...]
-#   e.g. tools/interop/lab.sh build/interop-lab 14 --reneg-sec 4
+#   e.g. tools/interop/lab.sh tools/interop/out 14 --reneg-sec 4
 set -euo pipefail
-OUT="${1:-build/interop-lab}"; SECS="${2:-14}"
+OUT="${1:-tools/interop/out}"; SECS="${2:-14}"
 shift $(( $# > 2 ? 2 : $# )) || true
 PORT=11940; NS=pfct; HOST_IP=10.99.0.1; NS_IP=10.99.0.2
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"

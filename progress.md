@@ -8,7 +8,7 @@
 
 ## 지금 할 일 (Next)
 
-- [ ] **MVP-A / A3** — Control Plane (reliability layer, tls-crypt, TLS 1.3, 키 유도). 먼저 reliability layer와 tls-crypt 래핑을 골든 pcap으로 TDD
+- [~] **MVP-A / A3** — Control Plane. tls-crypt 완료 → 다음: 제어 패킷 포맷 + reliability layer (골든 평문으로 TDD)
 
 ## 요약
 
@@ -73,16 +73,18 @@
 - [x] 변이 테스트로 nonce·AAD·wipe·window 크기 오류가 테스트에 잡히는지 확인
 - [x] CI: OpenSSL 게이팅(ubuntu/macOS ON, Windows OFF), `fuzz_data_v2` 타깃 — 5개 잡 모두 통과 확인 (run 14)
 
-### A3 — Control Plane (일반 코드, Flow 아님: D-009)
+### A3 — Control Plane (일반 코드, Flow 아님: D-009)  ([docs/OpenVPN_Control_Plane_Notes.md](docs/OpenVPN_Control_Plane_Notes.md))
 
-- [ ] reliability layer (packet-id, ACK 배열, 재전송, 세션 ID)
-- [ ] tls-crypt 래핑/언래핑
+- [x] **tls-crypt 와이어/키 배치 확정**: pcap + 테스트 키로 HMAC 태그 검증 (`tools/interop/verify_tls_crypt.py`). client tx=(K2,K3), rx=(K0,K1)
+- [x] **tls-crypt wrap/unwrap 구현** (`TlsCryptChannel`: packet-id/net_time replay, 인증 후에만 상태 갱신, id 고갈 시 중단). 골든 14개 개봉 + **재봉인 시 OpenVPN과 바이트 일치**
+- [ ] 제어 패킷 평문 포맷 파싱/빌드 (ACK 배열, 원격 세션ID, 패킷ID, P_ACK_V1 형식 확정)
+- [ ] reliability layer (수신 재정렬·ACK 생성, 송신 재전송 타이머, 시계 주입)
 - [ ] TLS 1.3 (메모리 BIO, OpenSSL) 핸드셰이크
-- [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]`을 이 단계에서 확정**
-- [ ] IV_PROTO = 14 (DATA_V2 | REQUEST_PUSH | TLS_KEY_EXPORT) 광고
-- [ ] PUSH_REQUEST / PUSH_REPLY 파싱 (ifconfig, route, peer-id, cipher, keepalive)
+- [ ] key-method 2 메시지, IV_PROTO = 14 광고
+- [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]` 확정** (랩에서 복원한 nonce tail을 기대값으로)
+- [ ] PUSH_REQUEST / PUSH_REPLY 파싱 (ifconfig, route, peer-id, cipher, keepalive) 후 `KeyStore`에 DataKey 설치
 - [ ] keepalive(ping), 재협상(key_id 회전)
-- [ ] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`)
+- [ ] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
 ### A4 — Linux 통합
 
