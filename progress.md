@@ -2,14 +2,14 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05 (A4 구현 완료, 1시간 soak 결과 대기)
+> 마지막 갱신: 2026-10-05 (A4 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
-- [~] **MVP-A / A4** — UDP 소켓 + TUN 통합 구현·터널 ping 완료, 1시간 soak 검증 중 ([docs/Linux_Client_Notes.md](docs/Linux_Client_Notes.md))
+- [x] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결+재협상 완료 ([docs/Linux_Client_Notes.md](docs/Linux_Client_Notes.md))
 - [ ] **MVP-A 공통 종료 조건** — 성능 기준선(OpenVPN 2.6 대비), fuzz/ASan 최종 확인
 
 ## 요약
@@ -18,7 +18,7 @@
 |---|---|
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
-| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A3 완료, A4 구현 완료(soak 검증 중), 공통 종료 조건 남음 |
+| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A4 완료, 공통 종료 조건 남음 |
 | MVP-B TCP + 폴백 | ⬜ |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
@@ -105,7 +105,7 @@
 - [x] **터널 ping 성공** (수정 없는 OpenVPN 2.6.19, netns + 실제 TUN): 20회 + 1300바이트 ping 손실 0%, 주소·푸시 라우트 설치 확인
 - [x] **재협상 중 트래픽**: 서버가 2초마다 재협상(≥8회, key_id 7→1 순환)하는 동안 연속 ping 손실 0%
 - [x] 자동 테스트 `tests/protocol/run_tunnel.sh` (CTest `pf_tunnel_openvpn`, 라벨 `protocol`)
-- [~] **1시간 연결 + 재협상 1회 이상** (서버 기본 `reneg-sec 3600`, `PF_ONLY=soak PF_SOAK_SECONDS=3700`): 실행 중
+- [x] **1시간 연결 + 재협상 1회 이상** (서버 기본 `reneg-sec 3600`, 3700초): 재협상 1회 성공, 송수신 3622/3622 손실 0. (첫 실행은 스크립트가 pf_client 종료 후에도 ping을 보내 손실로 오판 → `ping -w`로 수정)
 - [x] ASan/UBSan(-Werror) 빌드에서 unit/flow/regression 통과
 
 ### MVP-A 공통 종료 조건

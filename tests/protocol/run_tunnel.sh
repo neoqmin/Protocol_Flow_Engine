@@ -8,7 +8,7 @@
 #   ping          tunnel comes up, address/route installed, 20 pings + 1300-byte pings, 0% loss
 #   reneg-load    server renegotiates every 2 s while pinging continuously: >= 8 rekeys, key_id wraps 7 -> 1, 0% loss
 #   soak          OPT-IN: PF_SOAK_SECONDS=3700 (A4 exit criterion: 1 hour + a renegotiation with the server's DEFAULT
-#                 reneg-sec 3600). Pings once a second for the whole time; fails on any loss burst > 5 packets.
+#                 reneg-sec 3600). Pings once a second (ping -w deadline, so it ends before the client does); fails on any loss burst > 5 packets.
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "SKIP: needs root"; exit 77; }
 for t in openvpn tcpdump ip openssl ping; do command -v "$t" >/dev/null || { echo "SKIP: $t not installed"; exit 77; }; done
@@ -65,7 +65,7 @@ if [ "${PF_ONLY:-}" != soak ]; then      # PF_ONLY=soak (with PF_SOAK_SECONDS) r
   scenario reneg-load 2    28 "-c 40 -i 0.5 -W 1" "${PUSH_ROUTE[@]}"
 fi
 if [ -n "${PF_SOAK_SECONDS:-}" ]; then
-  scenario soak 3600 "$PF_SOAK_SECONDS" "-c $((PF_SOAK_SECONDS - 6)) -i 1 -W 1" "${PUSH_ROUTE[@]}"
+  scenario soak 3600 "$PF_SOAK_SECONDS" "-w $((PF_SOAK_SECONDS - 10)) -i 1 -W 1" "${PUSH_ROUTE[@]}"
 fi
 
 if [ "$FAILED" = 0 ]; then echo "PASS: tunnel carries real IP traffic through a TUN device to unmodified OpenVPN, across renegotiations"; exit 0; fi

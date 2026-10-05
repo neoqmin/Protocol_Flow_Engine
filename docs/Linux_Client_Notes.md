@@ -50,7 +50,7 @@ root(또는 `CAP_NET_ADMIN`)가 필요하다. 자동 테스트: `ctest --test-di
 |---|---|---|
 | `ping` | 터널 주소/라우트 설치, ping 20회 + 1300바이트 ping, 손실 0% | 통과 |
 | `reneg-load` | 서버가 2초마다 재협상(≥8회, key_id 7→1 순환)하는 동안 연속 ping, 손실 0% | 통과 |
-| `soak` (옵트인) | `PF_ONLY=soak PF_SOAK_SECONDS=3700`: 서버 기본 `reneg-sec 3600`, 1초 간격 ping 3694회 | SOAK_RESULT_PLACEHOLDER |
+| `soak` (옵트인) | `PF_ONLY=soak PF_SOAK_SECONDS=3700`: 서버 기본 `reneg-sec 3600`, 1초 간격 ping | **통과**: 3700초 연결, 재협상 1회(key_id 0→1, 실패 0), 클라이언트 송수신 패킷 3622/3622(손실 0), rx_dropped=0, unknown_key_id=0 |
 
 ## 5. 알려진 한계 / 다음
 
