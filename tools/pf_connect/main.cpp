@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
         DataPlane dp;
         auto aead = make_openssl_aes256gcm();
         if (!dp.init()) { std::fprintf(stderr, "data plane init failed\n"); return 4; }
-        unsigned sent = 0, ok = 0, bad = 0, tx_failed = 0;
+        unsigned sent = 0, ok = 0, other = 0, bad = 0, tx_failed = 0;
         const uint64_t start = now_ms(), end = start + static_cast<uint64_t>(keepalive_s) * 1000;
         const uint64_t every = (pr.ping_seconds ? pr.ping_seconds : 2) * 1000ull;
         uint64_t next_ping = start;
@@ -248,16 +248,23 @@ int main(int argc, char** argv) {
                 FlowContext ctx;
                 ctx.packet = &pkt; ctx.keys = &keys; ctx.aead = aead.get();
                 const FlowResult r = run_flow(dp.rx, ctx);
-                if (r.outcome == FlowOutcome::Completed && pkt.size() == sizeof kPing && std::memcmp(pkt.data(), kPing, sizeof kPing) == 0) {
+                if (r.outcome != FlowOutcome::Completed) {
+                    ++bad;                                              // failed authentication / replay / unknown key: a real problem
+                    std::printf("data packet not accepted: %s\n", error_name(r.error));
+                } else if (pkt.size() == sizeof kPing && std::memcmp(pkt.data(), kPing, sizeof kPing) == 0) {
                     ++ok;
                 } else {
-                    ++bad;
-                    std::printf("data packet not accepted: %s\n", r.outcome == FlowOutcome::Completed ? "unexpected payload" : error_name(r.error));
+                    // Authenticated, but not a keepalive: some other data-channel message from the server (e.g. an OCC
+                    // exchange). Not an error; recorded so it can be identified. Lab traffic only: print length and head.
+                    ++other;
+                    std::printf("data packet: authenticated non-ping payload len=%zu head=", pkt.size());
+                    for (size_t i = 0; i < pkt.size() && i < 8; ++i) std::printf("%02x", pkt.data()[i]);
+                    std::printf("\n");
                 }
             }
             if (client->state() == ControlClient::State::Failed) { std::printf("control channel failed: %s\n", client->failure_reason().c_str()); return 2; }
         }
-        std::printf("keepalive: sent=%u tx_failed=%u received_ok=%u received_bad=%u\n", sent, tx_failed, ok, bad);
+        std::printf("keepalive: sent=%u tx_failed=%u received_ok=%u received_other=%u received_bad=%u\n", sent, tx_failed, ok, other, bad);
         return (sent > 0 && ok > 0 && bad == 0 && tx_failed == 0) ? 0 : 3;
     }
     if (!probe) return 0;

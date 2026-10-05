@@ -98,4 +98,5 @@ ack_len(1) | ack ids(4 each, BE) | remote session_id(8, ack_len > 0일 때만) |
 
 - 재협상(SOFT_RESET, key_id 회전): 서버는 `reneg-sec`(기본 3600초) 후 시작. 우리는 현재 SOFT_RESET을 **무시**한다(`stats.ignored_soft_resets`) → 다음 단계.
 - keepalive 스케줄링(ping/ping-restart 타이머)을 코어에 구현(지금은 `pf_connect`의 데모 루프만).
+- **인증은 통과하지만 핑이 아닌 데이터 패킷**: GitHub 러너의 첫 상호운용 실행에서 서버 패킷 1개가 이런 형태로 도착했다(로컬 30초 실행에서는 없음; 서버는 `occ` 활성). 오류가 아니므로 `received_other`로 별도 집계하고 길이/앞 8바이트를 CI 로그에 남겨 정체를 확인한다. 인증 실패·replay·키 없음만 실패로 본다.
 - reliability 파라미터(윈도우 4, RTO 2초 등)는 실제 서버와 정상 동작했으나(손실 없는 로컬 링크), 손실/지연 환경 검증은 별도.

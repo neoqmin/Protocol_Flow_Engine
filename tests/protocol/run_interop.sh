@@ -18,7 +18,7 @@ fail() { echo "FAIL: $*"; echo "--- server log (tail) ---"; tail -25 "$OUT/serve
 
 [ "$(cat "$OUT/pf_client.exit" 2>/dev/null)" = "0" ] || fail "pf_connect exit code is not 0"
 grep -q "control channel ESTABLISHED" "$OUT/pf_client.log" || fail "control channel was not established"
-grep -Eq "keepalive: sent=[1-9][0-9]* tx_failed=0 received_ok=[1-9][0-9]* received_bad=0" "$OUT/pf_client.log" || fail "data channel keepalive exchange did not succeed in both directions"
+grep -Eq "keepalive: sent=[1-9][0-9]* tx_failed=0 received_ok=[1-9][0-9]* received_other=[0-9]+ received_bad=0" "$OUT/pf_client.log" || fail "data channel keepalive exchange did not succeed in both directions"
 grep -q "ignored_control_messages=0" "$OUT/pf_client.log" || fail "server key-method reply was not consumed exactly (stream misaligned)"
 grep -q "key-derivation tls-ekm" "$OUT/server.log" || fail "server did not negotiate tls-ekm"
 grep -q "pf-client/.*RECEIVED PING PACKET" "$OUT/server.log" || fail "server never accepted a data packet from us"
