@@ -56,11 +56,12 @@ cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build
 ctest --test-dir build -L protocol --output-on-failure     # tests/protocol/run_interop.sh, 약 50초
 ```
 `build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
+`build/pf_vpn`은 Linux 클라이언트(UDP+TUN, root): `pf_vpn --server H:P --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--duration S --stats-interval S --mtu 1400]`. 터널 통합 테스트: `PF_VPN=build/pf_vpn tests/protocol/run_tunnel.sh` (`TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1`로 1시간 soak). 랩 네임스페이스를 쓰므로 `run_interop.sh`와 **동시에 실행 금지**.
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 
 ## 코드 규칙
 
-- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), `tests/`, `adapters/`, `third_party/`, `patches/`
+- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), `pal/<플랫폼>/`(TUN·소켓·이벤트 루프, 코어는 include 금지), `tests/`, `adapters/`, `third_party/`, `patches/`
 - `tests/unit|flow|regression/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
 - 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존

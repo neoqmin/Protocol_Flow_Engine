@@ -120,6 +120,6 @@ ack_len(1) | ack ids(4 each, BE) | remote session_id(8, ack_len > 0일 때만) |
 
 ## 9. 남은 `[검증]` / 미구현
 
-- **A4(별도 세션)**: UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결(기본 `reneg-sec` 3600 포함).
+- ~~A4: UDP 소켓 + TUN 통합~~ → 완료(D-029, `pal/linux/`, `pf_vpn`). 1시간 연결 결과는 `progress.md` A4 참고.
 - reliability 파라미터(윈도우 4, RTO 2초 등)의 손실·지연 환경 검증은 별도(지금은 손실 없는 로컬 링크).
 - `ping-restart` 타임아웃 발생 시의 재연결 정책은 상위(A4/제품) 계층에서 결정.

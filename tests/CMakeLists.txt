@@ -58,6 +58,13 @@ if(PF_PROTOCOL_TESTS AND TARGET pf_connect)
                    bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_interop.sh)
   set_tests_properties(pf_interop_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77)
 endif()
+if(PF_PROTOCOL_TESTS AND TARGET pf_vpn)
+  # pf_vpn (UDP + TUN) vs an unmodified OpenVPN 2.6 server: real ping through the tunnel, with renegotiations.
+  add_test(NAME pf_tunnel_openvpn
+           COMMAND ${CMAKE_COMMAND} -E env PF_VPN=$<TARGET_FILE:pf_vpn>
+                   bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_tunnel.sh)
+  set_tests_properties(pf_tunnel_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77)
+endif()
 if(PF_PROTOCOL_TESTS)
   file(GLOB PROTO_SRCS CONFIGURE_DEPENDS protocol/test_*.cpp)
   if(PROTO_SRCS)

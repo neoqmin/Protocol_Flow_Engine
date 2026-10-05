@@ -61,6 +61,15 @@ if(PF_HAVE_OPENSSL AND UNIX)
   target_link_libraries(pf_connect PRIVATE pf_core)
 endif()
 
+# Linux client (PAL: pal/linux = TUN device + UDP/poll event loop). Linux only.
+if(PF_HAVE_OPENSSL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_library(pf_pal_linux STATIC pal/linux/tun_device.cpp pal/linux/vpn_client.cpp)
+  target_include_directories(pf_pal_linux PUBLIC pal/linux)
+  target_link_libraries(pf_pal_linux PUBLIC pf_core)
+  add_executable(pf_vpn tools/pf_vpn/main.cpp)
+  target_link_libraries(pf_vpn PRIVATE pf_pal_linux)
+endif()
+
 if(PF_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
