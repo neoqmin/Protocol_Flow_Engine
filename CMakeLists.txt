@@ -61,6 +61,15 @@ if(PF_HAVE_OPENSSL AND UNIX)
   target_link_libraries(pf_connect PRIVATE pf_core)
 endif()
 
+# A4: Linux client (UDP socket + TUN device). The OS-specific part lives in platform/linux (PAL), never in core/.
+if(PF_HAVE_OPENSSL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_library(pf_platform_linux STATIC platform/linux/linux_net.cpp)
+  target_include_directories(pf_platform_linux PUBLIC platform/linux)
+  target_link_libraries(pf_platform_linux PUBLIC pf_options)
+  add_executable(pf_client tools/pf_client/main.cpp)
+  target_link_libraries(pf_client PRIVATE pf_core pf_platform_linux)
+endif()
+
 if(PF_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
