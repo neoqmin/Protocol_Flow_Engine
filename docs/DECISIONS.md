@@ -32,6 +32,7 @@
 | D-025 | 2026-10-05 | **제어 패킷 평문 포맷 확정(2.6.19)**: `ack_len|acks(4B BE)|remote_sid(8, ack>0)|[message_id|payload]`, `P_ACK_V1`은 message 없음. 골든 14개 파싱→재빌드 일치. **reliability는 순수 로직(시계 주입)**: 송신 윈도우 4, RTO 2s×2 상한 16s, 6회 실패, 수신 윈도우 8, 중복은 재-ACK, ACK는 최신 우선 최대 8개. 파라미터는 우리 선택이며 A3-6 상호운용에서 검증 | 확정(포맷) / 파라미터는 상호운용 검증 대기 |
 | D-026 | 2026-10-05 | **EKM 키 유도 레이아웃 확정**(실제 OpenVPN 2.6.19 서버로 검증): label `EXPORTER-OpenVPN-datakeys`, 컨텍스트 없음, **256바이트** export. 클라이언트 tx = key `[0:32]` + nonce tail `[64:72]`, rx = key `[128:160]` + tail `[192:200]`(서버는 반대). 근거: 서버 패킷의 모든 오프셋 조합 탐색에서 GCM 태그가 검증되는 조합이 유일, 서버가 우리 핑을 복호화해 수락, 오프셋을 틀리게 하면 상호운용 테스트 실패 | 확정 |
 | D-027 | 2026-10-05 | **제어 채널 상호운용 확정**: key-method 2 메시지(옵션·peer info 값)가 수정 없는 서버에 수락됨. 서버 응답은 옵션 뒤에 **선택 필드 3개**(username, password, peer info; 빈 값). 서버는 `REQUEST_PUSH` 광고 시 PUSH_REQUEST 없이 PUSH_REPLY를 보내고 `key-derivation tls-ekm`으로 협상(`protocol-flags` 아님). `IV_VER`는 구현한 프로토콜 수준인 `2.6.0`. **자동 상호운용 테스트**(`tests/protocol/run_interop.sh`, CTest 라벨 `protocol`, root 필요)와 CI `interop` 잡(초기 비차단)을 추가 | 확정 |
+| D-028 | 2026-10-05 | **재협상·keepalive 설계 확정(실제 서버로 검증)**: key_id별 `KeyState`(reliable+TLS 분리), 재협상은 SOFT_RESET으로 시작(서버/클라이언트 모두), key_id는 `0,1..7,1`로 순환, 키 교환 직후 TX 전환, **이전 키는 수신용 유예(기본 60초) 후 와이프·최대 1개**, 실패한 재협상은 폐기하고 이전 키 유지, 클라이언트도 `reneg_interval_ms`(기본 3600초) 후 시작. `KeepaliveTimer`: 마지막 송신 후 `ping`초에 핑, 마지막 수신 후 `ping-restart`초에 타임아웃. 상호운용 테스트에 `server-reneg`(8회 이상, 7→1 순환)·`client-reneg` 시나리오 추가. **A4는 별도 세션에서 진행** | 확정 |
 
 ## 미결정 사항 (Open Questions)
 

@@ -2,10 +2,12 @@
 // Interop/diagnostic tool, not the product client. POSIX only. Needs OpenSSL.
 //
 //   pf_connect --server 10.99.0.1:11940 --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key
-//              [--timeout 30] [--probe-keys] [--keepalive-seconds N]
+//              [--timeout 30] [--probe-keys] [--keepalive-seconds N] [--reneg-seconds N]
 //
 // --keepalive-seconds N: after the control channel is up, exchange OpenVPN keepalive pings over the DATA channel
 //   (our DATA_V2 TX/RX blocks) for N seconds. Proves both key directions against the real server.
+//
+// --reneg-seconds N: also start key renegotiations ourselves every N seconds (the server normally does).
 //
 // Exit codes: 0 ok, 2 control channel failed, 3 probe/keepalive found nothing, 4 usage/config error.
 #include <arpa/inet.h>
@@ -28,6 +30,7 @@
 #include "pf/crypto/openssl_aes_gcm.h"
 #include "pf/data_v2.h"
 #include "pf/flow.h"
+#include "pf/keepalive.h"
 
 using namespace pf;
 
@@ -92,9 +95,6 @@ int probe_layout(const ControlClient& c, const std::vector<std::vector<uint8_t>>
     return found;
 }
 
-// OpenVPN's fixed 16-byte keepalive payload (observed in decrypted server pings, see tools/interop/verify_aead.py).
-const uint8_t kPing[16] = {0x2a, 0x18, 0x7b, 0xf3, 0x64, 0x1e, 0xb4, 0xcb, 0x07, 0xed, 0x2d, 0x0a, 0x98, 0x1f, 0xc7, 0x48};
-
 struct DataPlane {
     BlockRegistry reg;
     Flow rx, tx;
@@ -118,7 +118,7 @@ struct DataPlane {
 
 int main(int argc, char** argv) {
     std::string server = "10.99.0.1:11940", tc, ca, cert, key;
-    int timeout_s = 30, keepalive_s = 0;
+    int timeout_s = 30, keepalive_s = 0, reneg_s = 0;
     bool probe = false;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -131,6 +131,7 @@ int main(int argc, char** argv) {
         else if (a == "--timeout" && i + 1 < argc) timeout_s = std::atoi(argv[++i]);
         else if (a == "--probe-keys") probe = true;
         else if (a == "--keepalive-seconds" && i + 1 < argc) keepalive_s = std::atoi(argv[++i]);
+        else if (a == "--reneg-seconds" && i + 1 < argc) reneg_s = std::atoi(argv[++i]);
         else { std::fprintf(stderr, "unknown argument: %s\n", a.c_str()); return 4; }
     }
     if (tc.empty() || ca.empty() || cert.empty() || key.empty()) { std::fprintf(stderr, "missing --tls-crypt/--ca/--cert/--key\n"); return 4; }
@@ -144,6 +145,7 @@ int main(int argc, char** argv) {
     }
     KeyStore keys;
     cfg.keys = &keys;
+    if (reneg_s > 0) cfg.reneg_interval_ms = static_cast<uint32_t>(reneg_s) * 1000u;
     std::string err;
     auto client = ControlClient::create(std::move(cfg), err);
     if (!client) { std::fprintf(stderr, "config error: %s\n", err.c_str()); return 4; }
@@ -217,19 +219,23 @@ int main(int argc, char** argv) {
         auto aead = make_openssl_aes256gcm();
         if (!dp.init()) { std::fprintf(stderr, "data plane init failed\n"); return 4; }
         unsigned sent = 0, ok = 0, other = 0, bad = 0, tx_failed = 0;
+        std::vector<int> key_ids{client->tx_key_id()};            // TX key_id timeline (changes at each renegotiation)
         const uint64_t start = now_ms(), end = start + static_cast<uint64_t>(keepalive_s) * 1000;
-        const uint64_t every = (pr.ping_seconds ? pr.ping_seconds : 2) * 1000ull;
-        uint64_t next_ping = start;
-        // Keep the control channel serviced (acks/retransmits) while the data channel runs.
+        KeepaliveTimer ka(pr.ping_seconds, pr.ping_restart_seconds, start);
+        // Keep the control channel serviced (acks, retransmits, renegotiation) while the data channel runs.
         while (now_ms() < end) {
             const uint64_t t = now_ms();
             const uint32_t unix_s = static_cast<uint32_t>(std::time(nullptr));
             for (const auto& d : client->poll(t, unix_s)) (void)send(fd, d.data(), d.size(), 0);
-            if (t >= next_ping) {
-                PacketBuffer pkt = PacketBuffer::from_bytes(kPing, sizeof kPing);
+            if (client->tx_key_id() != key_ids.back()) key_ids.push_back(client->tx_key_id());
+
+            const KeepaliveTimer::Action act = ka.poll(t);
+            if (act == KeepaliveTimer::Action::Timeout) { std::printf("ping-restart: no packet from the server\n"); return 2; }
+            if (act == KeepaliveTimer::Action::SendPing) {
+                PacketBuffer pkt = PacketBuffer::from_bytes(kPingPayload, kPingPayloadLen);
                 FlowContext ctx;
                 ctx.packet = &pkt; ctx.keys = &keys; ctx.aead = aead.get();
-                ctx.header = OvpnHeader{OvpnOpcode::DataV2, 0, pr.peer_id};
+                ctx.header = OvpnHeader{OvpnOpcode::DataV2, client->tx_key_id(), pr.peer_id};
                 ctx.header_valid = true;
                 if (run_flow(dp.tx, ctx).outcome == FlowOutcome::Completed) {
                     (void)send(fd, pkt.data(), pkt.size(), 0);
@@ -237,34 +243,41 @@ int main(int argc, char** argv) {
                 } else {
                     ++tx_failed;
                 }
-                next_ping = t + every;
             }
             pollfd p{fd, POLLIN, 0};
-            if (poll(&p, 1, 100) > 0 && (p.revents & POLLIN)) {
+            if (poll(&p, 1, 50) > 0 && (p.revents & POLLIN)) {
                 uint8_t buf[2048];
                 const ssize_t n = recv(fd, buf, sizeof buf, 0);
-                if (n <= 0 || client->on_datagram(buf, static_cast<size_t>(n), now_ms(), unix_s)) continue;
+                if (n <= 0) continue;
+                if (client->on_datagram(buf, static_cast<size_t>(n), now_ms(), unix_s)) { ka.on_received(now_ms()); continue; }
                 PacketBuffer pkt = PacketBuffer::from_bytes(buf, static_cast<size_t>(n));
                 FlowContext ctx;
                 ctx.packet = &pkt; ctx.keys = &keys; ctx.aead = aead.get();
                 const FlowResult r = run_flow(dp.rx, ctx);
                 if (r.outcome != FlowOutcome::Completed) {
                     ++bad;                                              // failed authentication / replay / unknown key: a real problem
-                    std::printf("data packet not accepted: %s\n", error_name(r.error));
-                } else if (pkt.size() == sizeof kPing && std::memcmp(pkt.data(), kPing, sizeof kPing) == 0) {
-                    ++ok;
+                    std::printf("data packet not accepted: %s (key_id=%u)\n", error_name(r.error), buf[0] & 7);
                 } else {
-                    // Authenticated, but not a keepalive: some other data-channel message from the server (e.g. an OCC
-                    // exchange). Not an error; recorded so it can be identified. Lab traffic only: print length and head.
-                    ++other;
-                    std::printf("data packet: authenticated non-ping payload len=%zu head=", pkt.size());
-                    for (size_t i = 0; i < pkt.size() && i < 8; ++i) std::printf("%02x", pkt.data()[i]);
-                    std::printf("\n");
+                    ka.on_received(now_ms());
+                    if (is_ping_payload(pkt.data(), pkt.size())) {
+                        ++ok;
+                    } else {
+                        // Authenticated, but not a keepalive: some other data-channel message from the server (e.g. an OCC
+                        // exchange). Not an error; recorded so it can be identified. Lab traffic only: length and head.
+                        ++other;
+                        std::printf("data packet: authenticated non-ping payload len=%zu head=", pkt.size());
+                        for (size_t i = 0; i < pkt.size() && i < 8; ++i) std::printf("%02x", pkt.data()[i]);
+                        std::printf("\n");
+                    }
                 }
             }
             if (client->state() == ControlClient::State::Failed) { std::printf("control channel failed: %s\n", client->failure_reason().c_str()); return 2; }
         }
         std::printf("keepalive: sent=%u tx_failed=%u received_ok=%u received_other=%u received_bad=%u\n", sent, tx_failed, ok, other, bad);
+        const auto& st = client->stats();
+        std::printf("renegotiations=%u reneg_failures=%u unknown_key_id=%u key_ids=", st.renegotiations, st.reneg_failures, st.unknown_key_id);
+        for (size_t i = 0; i < key_ids.size(); ++i) std::printf("%s%d", i ? "," : "", key_ids[i]);
+        std::printf("\n");
         return (sent > 0 && ok > 0 && bad == 0 && tx_failed == 0) ? 0 : 3;
     }
     if (!probe) return 0;

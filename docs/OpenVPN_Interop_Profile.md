@@ -28,7 +28,7 @@ D-008. MVP가 "수정 없는 OpenVPN과 wire 호환"이라는 것은 **아래 �
 | 데이터 채널 | AES-256-GCM, DATA_V2, peer-id. **[관측·검증됨]** 와이어 레이아웃 = `헤더 4B(opcode/key_id 1 + peer-id 3) ‖ packet-id 4B ‖ GCM 태그 16B ‖ 암호문` (태그가 암호문 **앞**). **nonce(12B) = 와이어의 packet-id(4B) ‖ 방향·키별 고정 tail 8B**(연결 방식). **AAD = 헤더 4B ‖ packet-id 4B (8B)**. §2.3 참고 |
 | Reliability | 제어 채널 packet-id, ACK 배열, 재전송, 세션 ID. **[관측]** 핸드셰이크에서 CONTROL_V1과 ACK_V1이 교차 |
 | 옵션 | PUSH_REQUEST/PUSH_REPLY 파싱: `ifconfig`, `route`, `peer-id`, `cipher`, `keepalive` 등 필요한 최소 집합 |
-| 유지 | keepalive(ping), key_id 회전을 통한 **재협상(renegotiation)**. **[관측]** `--reneg-sec 6` 환경에서 SOFT_RESET(opcode 3) 후 key_id가 0→1→2로 증가, 데이터 채널도 해당 key_id 사용 |
+| 유지 | keepalive(ping), key_id 회전을 통한 **재협상(renegotiation)**. **[관측·검증됨]** 서버·클라이언트 시작 재협상 모두 동작, key_id `0,1..7,1`(7 다음 1), key_id별 reliability(message_id 0부터), 상세는 `docs/OpenVPN_Control_Plane_Notes.md` §7. (이전 관측: **[관측]** `--reneg-sec 6` 환경에서 SOFT_RESET(opcode 3) 후 key_id가 0→1→2로 증가, 데이터 채널도 해당 key_id 사용 |
 | NCP | 암호 협상은 AES-256-GCM만 선택하도록 제한 |
 
 ### 2.3 AEAD 레이아웃 검증 결과 (2026-10-05, OpenVPN 2.6.19)

@@ -94,9 +94,32 @@ ack_len(1) | ack ids(4 each, BE) | remote session_id(8, ack_len > 0일 때만) |
 - tx 검증: 우리가 보낸 핑을 서버가 복호화해 `RECEIVED PING PACKET`으로 기록. tx 오프셋을 틀리게 바꾸면 상호운용 테스트가 `server never accepted a data packet from us`로 실패함을 확인.
 - 이 레이아웃은 `EkmLayout` 기본값이다. 키 방향은 OpenVPN의 `key2` 구조(2 × (cipher 64B + hmac 64B))와 일치하는 형태: 구간 0 = 클라이언트 송신, 구간 1 = 클라이언트 수신, nonce tail은 각 구간 hmac 슬롯의 앞 8바이트.
 
-## 7. 남은 `[검증]` / 미구현
+## 7. 재협상 (SOFT_RESET, key_id 회전) [관측·검증됨: 실제 서버와 상호운용]
 
-- 재협상(SOFT_RESET, key_id 회전): 서버는 `reneg-sec`(기본 3600초) 후 시작. 우리는 현재 SOFT_RESET을 **무시**한다(`stats.ignored_soft_resets`) → 다음 단계.
-- keepalive 스케줄링(ping/ping-restart 타이머)을 코어에 구현(지금은 `pf_connect`의 데모 루프만).
-- **인증은 통과하지만 핑이 아닌 데이터 패킷**: GitHub 러너의 첫 상호운용 실행에서 서버 패킷 1개가 이런 형태로 도착했다(로컬 30초 실행에서는 없음; 서버는 `occ` 활성). 오류가 아니므로 `received_other`로 별도 집계하고 길이/앞 8바이트를 CI 로그에 남겨 정체를 확인한다. 인증 실패·replay·키 없음만 실패로 본다.
-- reliability 파라미터(윈도우 4, RTO 2초 등)는 실제 서버와 정상 동작했으나(손실 없는 로컬 링크), 손실/지연 환경 검증은 별도.
+서버를 `--reneg-sec 2`로 두고 26초 동안 접속한 결과: **12번 재협상, 실패 0, 데이터 핑 12/12 정상**. 반대로 서버를 3600초로 두고 **우리가 4초마다 시작**해도 동작(3회). (`tests/protocol/run_interop.sh`의 `server-reneg`, `client-reneg` 시나리오)
+
+관측된 동작:
+- 재협상은 **`P_CONTROL_SOFT_RESET_V1`(opcode 3)** 로 시작한다. key_id는 현재+1, **7 다음은 1** (0은 최초 키 전용). 관측된 순서: `0,1,2,3,4,5,6,7,1,2,3,4,5`.
+- **세션 ID는 그대로**이고, **key_id마다 reliability 상태가 따로**다: message_id가 **0부터 다시 시작**하고 ACK도 해당 key_id로 보내야 한다.
+  - 처음에 우리가 SOFT_RESET을 무시하며 ACK를 `key_id=0`으로 보내자 서버가 같은 SOFT_RESET을 4초, 6초, 10초에 지수 백오프로 재전송했다(관측).
+- 흐름: 시작한 쪽이 SOFT_RESET(msg 0)을 보내고 상대도 SOFT_RESET(msg 0)으로 답한다 → 새 key_id의 CONTROL_V1으로 TLS 핸드셰이크(우리가 TLS 클라이언트) → key-method 2 교환(**PUSH 없음**) → 새 TLS 세션의 exporter로 키 유도(§6과 같은 레이아웃).
+- `dyn-tls-crypt`를 광고하지 않으므로 **재협상 중에도 같은 정적 tls-crypt 키**를 쓴다(채널의 packet-id/net_time replay 상태도 공유).
+
+우리 구현(`ControlClient`, D-028):
+- key_id별 `KeyState`(자기 reliable 송수신 + TLS 세션). 현재 키 이후의 **정확히 다음 key_id**에 대한 SOFT_RESET만 새 상태를 만든다(그 밖은 `unknown_key_id`로 폐기, 할당 없음).
+- 키 교환이 끝나면 **즉시 TX를 새 key_id로 전환**하고(`tx_key_id()`), 이전 키는 **수신용으로 유예 기간(기본 60초)** 동안 유지한 뒤 와이프한다. **오래된 키는 항상 최대 1개**(유예가 길어도 이전 재협상의 키는 즉시 정리).
+- 재협상이 실패(타임아웃 60초, TLS 오류, 잘못된 key-method)하면 **그 상태만 버리고 이전 키로 터널을 유지**한다.
+- 서버가 시작하지 않을 때를 대비해 우리도 `reneg_interval_ms`(기본 3600초) 후 시작한다.
+- 타이밍 위험: 서버가 새 키로 보내기 시작하는 시점이 우리 키 설치보다 앞설 수 있으나, 실제 서버와의 실행에서 `unknown_key_id=0`, `received_bad=0`이었다(서버는 key-method 응답 이후에 새 키를 사용).
+
+## 8. keepalive [관측·검증됨]
+
+- 핑 페이로드는 고정 16바이트(`2a187bf3…c748`). 푸시의 `ping 2`, `ping-restart 8`을 `KeepaliveTimer`(코어, 시계 주입)가 사용: **마지막 송신 후 N초 지나면 핑**, **마지막 수신 후 M초 지나면 타임아웃**(세션 재시작 필요).
+- 서버는 우리 핑을 복호화해 `RECEIVED PING PACKET`으로 기록한다.
+- 인증은 통과하지만 핑이 아닌 데이터 패킷이 올 수 있다(GitHub 러너에서 1회 관측). 오류가 아니므로 `received_other`로 별도 집계한다.
+
+## 9. 남은 `[검증]` / 미구현
+
+- **A4(별도 세션)**: UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결(기본 `reneg-sec` 3600 포함).
+- reliability 파라미터(윈도우 4, RTO 2초 등)의 손실·지연 환경 검증은 별도(지금은 손실 없는 로컬 링크).
+- `ping-restart` 타임아웃 발생 시의 재연결 정책은 상위(A4/제품) 계층에서 결정.

@@ -50,6 +50,12 @@ apt-get install -y openvpn tcpdump iproute2 iputils-ping     # OpenVPN 2.6.x
 tools/interop/lab.sh tools/interop/out 16   # 수정 없는 서버/클라이언트 실행 + pcap/로그
 ```
 `tools/interop/verify_aead.py`/`verify_tls_crypt.py <out_dir>`로 데이터 채널 AEAD·tls-crypt 레이아웃을, `extract_vectors.py`/`extract_tls_crypt_vectors.py`로 골든 벡터를 만든다(`pip install cryptography`).
+우리 클라이언트를 수정 없는 OpenVPN 서버에 붙이는 자동 상호운용 테스트(root 필요, 3 시나리오: baseline / server-reneg / client-reneg):
+```sh
+cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build build
+ctest --test-dir build -L protocol --output-on-failure     # tests/protocol/run_interop.sh, 약 50초
+```
+`build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 
 ## 코드 규칙

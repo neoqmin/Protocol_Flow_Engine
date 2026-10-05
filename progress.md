@@ -2,13 +2,14 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05 (A2 완료)
+> 마지막 갱신: 2026-10-05 (A3 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
-- [~] **MVP-A / A3** — Control Plane. tls-crypt·제어 패킷·reliability 완료 → 제어 채널·키 유도·데이터 keepalive를 실제 서버와 검증 완료 → 다음: 재협상(key_id 회전)과 keepalive 세션 로직, 이후 A4(UDP+TUN)
+- [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
+- [ ] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결 (재협상 포함). **다른 세션에서 진행**
 
 ## 요약
 
@@ -89,8 +90,9 @@
 - [x] **EKM 키 분할 확정** (D-026): 모든 오프셋 탐색에서 GCM 태그 검증되는 조합이 유일, tx는 서버가 핑을 수락
 - [x] **데이터 채널 양방향 keepalive** 실제 서버와 교환 (우리 TX/RX 블록 사용: 송신 핑을 서버가 복호, 서버 핑을 우리가 replay 검사→복호)
 - [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡. 키 분할을 틀리게 바꾸면 실패함을 확인
-- [ ] 재협상(SOFT_RESET, key_id 회전): 서버가 시작하는 재협상 처리, 새 키 설치, 이전 키 유예 수신
-- [ ] keepalive 스케줄링(ping / ping-restart 타이머)을 코어 세션 로직으로 (현재는 pf_connect 데모 루프)
+- [x] **재협상(SOFT_RESET, key_id 회전)**: key_id별 key state, 서버·클라이언트 시작 모두, TX 전환, 이전 키 수신 유예(최대 1개), 실패 시 이전 키 유지. 가짜 서버 11개 시나리오 + 변이 11개 모두 검출. **실제 서버: 26초 동안 12회 재협상, key_id 7→1 순환 확인, 데이터 12/12 정상**
+- [x] keepalive 스케줄링(`KeepaliveTimer`: ping / ping-restart)을 코어로. 변이 검출 확인
+- [x] 상호운용 테스트 3 시나리오(`baseline`, `server-reneg`, `client-reneg`), 재협상/키 전환을 깨뜨리는 변이를 모두 검출
 - [ ] keepalive(ping), 재협상(key_id 회전)
 - [x] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
