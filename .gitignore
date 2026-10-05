@@ -1,1 +1,5 @@
 build/
+tools/interop/out/
+*.key
+*.pem
+*.csr

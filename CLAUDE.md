@@ -22,7 +22,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - Device(TUN/TAP)와 Transport(UDP/TCP/프록시/Relay)는 독립 축. TAP은 Linux/Windows만
 - 오픈소스 원본 수정 금지, Adapter 경유, 패치는 최후 수단 (`third_party/`는 편집 금지)
 - **MVP에서는 오픈소스 수정이 필요한 작업 제외** (DCO Adapter, Kernel Runtime은 Post-MVP)
-- 언어는 C++17로 시작 (Rust 병행 여부 미결정)
+- 언어 **C++17 확정**(D-013), TLS/암호는 **OpenSSL 3.x**(D-014, MVP-A)
 - MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
 - Control Plane은 MVP에서 일반 코드(Flow 아님). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
 - 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지
@@ -40,6 +40,14 @@ ctest --test-dir build -L unit      # unit | flow | regression | protocol | perf
 cmake -S . -B build-san -DPF_WARNINGS_AS_ERRORS=ON -DPF_SANITIZE=address,undefined
 # 퍼저 (Clang + libFuzzer 런타임 필요): -DPF_BUILD_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++
 ```
+
+## 상호운용 랩 (root 필요)
+
+```sh
+apt-get install -y openvpn tcpdump iproute2 iputils-ping     # OpenVPN 2.6.x
+tools/interop/lab.sh build/interop-lab 16   # 수정 없는 서버/클라이언트 실행 + pcap/로그
+```
+키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 
 ## 코드 규칙
 

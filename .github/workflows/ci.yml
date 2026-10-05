@@ -34,9 +34,8 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
 
   fuzz-smoke:
-    # Non-blocking until the libFuzzer toolchain on the runner is verified.
+    # Verified passing on GitHub-hosted runners (run 37270505817); now blocking.
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
