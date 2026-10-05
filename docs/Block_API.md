@@ -1,4 +1,4 @@
-# Block API (MVP-A / A1)
+# Block API (MVP-A / A1, A2)
 
 구현: `core/include/pf/{error,packet_buffer,flow_context,block,flow}.h`, 블록 예: `core/include/pf/blocks/openvpn_blocks.h`.
 테스트: `tests/unit/test_{error,packet_buffer,block_registry,flow_build}.cpp`, `tests/flow/test_{flow_runner,openvpn_rx_flow}.cpp`.
@@ -77,3 +77,45 @@ PacketBuffer   : headroom/tailroom을 가진 단일 소유 버퍼 (zero-copy 캡
 - 스레딩: `FlowContext`/`PacketBuffer`는 스레드 간 공유하지 않는다(패킷당 하나). Registry/Flow는 빌드 후 읽기 전용이라 공유 가능. 배칭·per-CPU 컨텍스트는 PM-3.
 - Control Plane은 이 Flow가 아니라 일반 코드(D-009).
 - 커널 런타임용 ABI(plain function pointer, 힙 없는 경로)는 PM-8에서 별도 정리.
+
+---
+
+# 8. Data Plane 블록 (A2)
+
+구현: `core/include/pf/blocks/data_plane_blocks.h`, `core/src/blocks/data_plane_blocks.cpp`. 와이어 레이아웃은 `docs/OpenVPN_Interop_Profile.md` §2.3 (2.6.19에서 태그 검증까지 확인).
+
+```text
+RX:  parse_data_v2 → lookup_rx_key → replay_check → aead_decrypt → replay_commit
+TX:  lookup_tx_key → aead_encrypt        (호출자가 ctx.header = {DataV2, key_id, peer_id} 설정)
+```
+
+| id | 블록 | 실패 시 |
+|---|---|---|
+| 6 | `parse_data_v2` | `Drop(Truncated)` (< 24B), `Drop(InvalidOpcode)` |
+| 7 | `lookup_rx_key` | `Drop(UnknownKey)` |
+| 8 | `replay_check` (읽기 전용) | `Drop(ReplayDetected)`, `Drop(InvalidPacketId)` |
+| 9 | `aead_decrypt` (제자리, 성공 시 24B 오버헤드 제거) | `Drop(AuthFailed)` |
+| 10 | `replay_commit` | - |
+| 11 | `lookup_tx_key` | `Error(UnknownKey)` (우리 설정 문제) |
+| 12 | `aead_encrypt` (packet-id 부여, headroom에 헤더 추가) | `Error(NonceExhausted)`, `Error(BufferTooSmall)` |
+
+## 8.1 보안 규칙 (테스트로 고정)
+
+- **replay window는 인증 성공 후에만 갱신한다.** `replay_check`는 읽기 전용이고 `replay_commit`이 마지막에 온다. 위조 패킷이 window를 앞으로 밀어 정상 패킷을 "too old"로 만드는 공격을 막는다. (`rx_forged_packet_does_not_advance_replay_window`)
+- **인증되지 않은 평문을 내보내지 않는다.** `AeadProvider::decrypt`는 실패 시 버퍼를 0으로 지운다.
+- **nonce 재사용 금지.** TX packet-id는 1부터 증가하며 `0xFFFFFFFF` 사용 뒤에는 `Error(NonceExhausted)`로 멈춘다(래핑 안 함). 호출자는 재협상으로 새 키를 설치해야 한다.
+- 입력 탓의 실패는 `Drop`, 우리 쪽 문제(키 없음, 서비스 미연결, headroom 부족, nonce 고갈)는 `Error`.
+- `ctx.keys`/`ctx.aead`가 없으면 `Error(Internal)` — 배선 버그를 입력 오류로 오인하지 않는다.
+- 키 바이트는 `KeyStore` 안에만 있고 Block은 `KeyRef`만 다룬다. `DataKey`는 소멸/`remove` 시 지워진다(`secure_zero`).
+
+## 8.2 Crypto Provider
+
+- `AeadProvider`(`pf/crypto/aead_provider.h`): 플랫폼 독립 인터페이스, **제자리** 암복호, nonce 12B / key 32B / tag 16B.
+- `make_openssl_aes256gcm()`(`pf/crypto/openssl_aes_gcm.h`): OpenSSL 3.x EVP 구현. **`PF_WITH_OPENSSL`이 켜진 빌드에서만** 컴파일된다(`AUTO`/`ON`/`OFF`). Blocks와 나머지 코어는 OpenSSL 없이 빌드된다.
+- 테스트: 블록 로직은 가짜 Provider(`tests/flow/test_data_plane_flow.cpp`)로 OpenSSL 없이, 실제 암호·OpenVPN 골든은 `*_openssl.cpp`로 분리.
+
+## 8.3 한계 / 후속
+
+- OpenSSL 구현은 호출마다 `EVP_CIPHER_CTX`를 만든다. 성능 최적화(컨텍스트 재사용, 배칭)는 PM-3.
+- 키 유도(exporter)와 재협상으로 `KeyStore`에 키를 설치하는 부분은 A3.
+- 64비트 packet-id(epoch) 방식은 지원하지 않는다(2.6 프로파일 한정, D-017).

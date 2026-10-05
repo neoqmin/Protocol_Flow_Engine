@@ -1,11 +1,15 @@
 #pragma once
 #include <cstdint>
 
+#include "pf/data_v2.h"
 #include "pf/error.h"
 #include "pf/openvpn_header.h"
 #include "pf/packet_buffer.h"
 
 namespace pf {
+
+class KeyStore;      // pf/key_store.h
+class AeadProvider;  // pf/crypto/aead_provider.h
 
 // Opaque handle to key material held by the Key Manager. Blocks never see key
 // bytes through the context, only this reference (docs/Threat_Model... §4).
@@ -21,7 +25,10 @@ struct FlowContext {
     PacketBuffer* packet = nullptr;
     OvpnHeader header{};            // valid only when header_valid
     bool header_valid = false;
+    DataV2Packet data_v2{};         // fields parsed by parse_data_v2 (RX data plane)
     KeyRef key_ref{};
+    KeyStore* keys = nullptr;       // borrowed services (owned by the caller/session)
+    AeadProvider* aead = nullptr;
     uint32_t flags = 0;
     Error error = Error::None;      // reason set by a block returning Drop/Error
     void* user_context = nullptr;

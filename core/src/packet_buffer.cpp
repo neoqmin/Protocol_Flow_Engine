@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "pf/secure_mem.h"
+
 namespace pf {
 
 PacketBuffer::PacketBuffer(size_t headroom, size_t capacity, size_t tailroom)
@@ -60,9 +62,7 @@ bool PacketBuffer::trim_back(size_t n) {
 }
 
 void PacketBuffer::wipe() {
-    // volatile so the compiler cannot elide the stores as dead.
-    volatile uint8_t* p = base_.get();
-    for (size_t i = 0; i < total_; ++i) p[i] = 0;
+    secure_zero(base_.get(), total_);
     len_ = 0;
 }
 

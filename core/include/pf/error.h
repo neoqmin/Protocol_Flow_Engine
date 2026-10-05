@@ -20,6 +20,8 @@ enum class Error : uint16_t {
     PolicyDenied,
     NoRoute,
     BufferTooSmall,
+    InvalidPacketId,  // packet-id 0
+    NonceExhausted,   // TX packet-id space used up: renegotiate, never reuse a nonce
     Internal,         // contract violation or unexpected internal failure
     FlowInvalid,      // flow was not built/validated
     StepLimit,        // runner step budget exceeded
@@ -43,6 +45,8 @@ constexpr const char* error_name(Error e) {
         case Error::PolicyDenied: return "PolicyDenied";
         case Error::NoRoute: return "NoRoute";
         case Error::BufferTooSmall: return "BufferTooSmall";
+        case Error::InvalidPacketId: return "InvalidPacketId";
+        case Error::NonceExhausted: return "NonceExhausted";
         case Error::Internal: return "Internal";
         case Error::FlowInvalid: return "FlowInvalid";
         case Error::StepLimit: return "StepLimit";

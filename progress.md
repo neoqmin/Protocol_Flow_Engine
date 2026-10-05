@@ -2,13 +2,13 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05
+> 마지막 갱신: 2026-10-05 (A2 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
-- [ ] **MVP-A / A2** — Data Plane Block (DATA_V2 AES-256-GCM, packet-id, replay). 골든 벡터부터 작성
+- [ ] **MVP-A / A3** — Control Plane (reliability layer, tls-crypt, TLS 1.3, 키 유도). 먼저 reliability layer와 tls-crypt 래핑을 골든 pcap으로 TDD
 
 ## 요약
 
@@ -16,7 +16,7 @@
 |---|---|
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
-| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1 완료, A2 다음 |
+| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1·A2 완료, A3 다음 |
 | MVP-B TCP + 폴백 | ⬜ |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
@@ -60,16 +60,18 @@
 - [x] `run_flow` 실행기 + 통계(`FlowStats`) + step 한도
 - [x] OpenVPN RX 정적 Flow (파싱 → 정책 → 분기 → decap)
 
-### A2 — Data Plane  ⬅ 다음
+### A2 — Data Plane ✅  ([docs/Block_API.md](docs/Block_API.md) §8)
 
-- [ ] 랩 pcap + 테스트 세션 키로 **DATA_V2 골든 벡터** 추출 (키는 테스트 전용, 개인 키 커밋 금지)
-- [ ] DATA_V2 헤더/packet-id 파싱 Block
-- [ ] AES-256-GCM 복호 Block (OpenSSL 3.x, **제자리** 복호, AAD = 헤더4‖packet-id4, nonce = packet-id‖tail8)
-- [ ] AES-256-GCM 암호 Block (TX 방향, headroom으로 캡슐화)
-- [ ] packet-id **replay window** Block (경계·재생·역전 테스트)
-- [ ] 변조(태그 불일치)·잘린 패킷 거부 테스트 (`Drop` + `AuthFailed`/`Truncated`)
-- [ ] DATA_V2 RX/TX Flow 통합, ASan/UBSan·fuzz 통과
-- [ ] 키 재료 `wipe` 검증 테스트
+- [x] 랩 pcap + 테스트 세션 키로 **DATA_V2 골든 벡터** 17개 추출 (`tools/interop/extract_vectors.py`, 태그 검증 통과분만)
+- [x] DATA_V2 헤더/packet-id 파싱 Block (`parse_data_v2`)
+- [x] AES-256-GCM 복호 Block (OpenSSL 3.x, **제자리**, AAD = 헤더4‖packet-id4, nonce = packet-id‖tail8)
+- [x] AES-256-GCM 암호 Block (TX, headroom 캡슐화) — 골든 평문을 재암호화하면 OpenVPN 바이트와 **정확히 일치**
+- [x] packet-id **replay window** (64, check/commit 분리, 경계·큰 점프·최댓값 테스트)
+- [x] 변조(태그/암호문/AAD/키/nonce)·잘림·키 없음·재생·packet-id 0 거부 테스트
+- [x] DATA_V2 RX/TX Flow 통합 (가짜 Provider로 로직 검증 + 실제 OpenVPN 패킷으로 전체 Flow 검증)
+- [x] 키 재료 `wipe` 검증 (`DataKey`, `secure_zero`, 인증 실패 시 평문 0 처리), TX nonce 고갈 정책
+- [x] 변이 테스트로 nonce·AAD·wipe·window 크기 오류가 테스트에 잡히는지 확인
+- [~] CI: OpenSSL 게이팅(ubuntu/macOS ON, Windows OFF), `fuzz_data_v2` 타깃 — 푸시 후 CI 확인 필요
 
 ### A3 — Control Plane (일반 코드, Flow 아님: D-009)
 
@@ -129,6 +131,7 @@
 - [ ] 성능 목표 수치, iOS 메모리 상한 (MVP-A 기준선 이후)
 - [ ] Relay 구현 방식 (PM-2 진입 전)
 - [ ] 모바일 TLS/암호 라이브러리 (PM-1 진입 전)
+- [ ] Windows용 암호 라이브러리 연결 (현재 CI는 OpenSSL OFF, PM-1)
 - [ ] MSVC `/WX` 적용 시점
 - [ ] 법무 검토 (상용 배포 전, clean-room/GPL)
 - [ ] `third_party` 무수정 검사 + upstream canary CI (의존성이 들어올 때)
