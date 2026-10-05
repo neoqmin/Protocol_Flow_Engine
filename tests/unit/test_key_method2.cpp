@@ -125,6 +125,23 @@ PF_TEST(km2_short_server_message_is_parsed_without_expecting_a_pre_master) {
         PF_CHECK(parse_key_method2(w.data(), n, KeyMethod2From::Server, p, used) == KeyMethod2Status::Truncated);
 }
 
+PF_TEST(km2_optional_field_count_keeps_following_messages_intact) {
+    // If the peer sends only username+password after the options, a third optional read would swallow the next
+    // message's first bytes as a length. The count limits what is consumed.
+    KeyMethod2Message m = sample(); m.peer_info.clear();
+    std::vector<uint8_t> w;
+    PF_REQUIRE(build_key_method2(m, KeyMethod2From::Server, w));
+    w.resize(w.size() - 2);                                          // keep username + password, drop peer info length
+    const size_t n = w.size();
+    const char* push = "PUSH_REPLY,ping 2";
+    w.insert(w.end(), push, push + std::strlen(push) + 1);
+    KeyMethod2Message p; size_t used = 0;
+    PF_REQUIRE(parse_key_method2(w.data(), w.size(), KeyMethod2From::Server, p, used, /*optional_fields=*/2) == KeyMethod2Status::Ok);
+    PF_CHECK_EQ(used, n);
+    PF_REQUIRE(parse_key_method2(w.data(), w.size(), KeyMethod2From::Server, p, used, /*optional_fields=*/0) == KeyMethod2Status::Ok);
+    PF_CHECK_EQ(used, size_t(5 + 64 + 2 + m.options.size() + 1));    // nothing optional consumed
+}
+
 PF_TEST(km2_rejects_bad_header_and_unsupported_method) {
     KeyMethod2Message m = sample();
     std::vector<uint8_t> w; KeyMethod2Message p; size_t used;

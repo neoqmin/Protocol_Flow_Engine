@@ -82,9 +82,11 @@
 - [x] TLS 1.3 메모리 BIO 세션 (`tls_session.h`): feed/step/take_output 구동 방식, 1바이트 단위 전달·100KB 전송·단편화 검증, 피어 인증서 항상 검증 + EKU(serverAuth/clientAuth) 강제, TLS 1.3 전용, 티켓 비활성, 키 불일치/CA 없음 거부, exporter 노출. 테스트 PKI는 실행 시점에 생성(키 미커밋). *(실제 OpenVPN 서버와의 핸드셰이크는 A3-6에서)*
 - [x] key-method 2 메시지 빌드/파싱 (`key_method2.h`): 문서화된 필드 순서, 클라이언트/서버 key source 차이, 선택 필드, 소비 바이트 보고(뒤따르는 PUSH 읽기용), 잘림/악성 길이 방어 *(실제 서버 수락 여부는 A3-6에서)*
 - [x] PUSH_REPLY 파싱 (`push.h`): **실제 2.6.19 응답 문자열**로 검증, 라우트/미지 옵션 보존, 잘못된 값 거부, MVP 지원 여부 판정(AES-256-GCM·tls-ekm·subnet)
-- [ ] IV_PROTO = 14 광고 (ControlClient에서)
+- [x] IV_PROTO = 14 광고 (`default_peer_info`, 테스트로 고정: 990/dyn-tls-crypt 미광고)
 - [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]` 확정** (랩에서 복원한 nonce tail을 기대값으로)
-- [ ] `ControlClient` 상태머신(순수, I/O 없음): hard reset → TLS → key-method 2 → PUSH_REPLY → 키 설치. 가짜 서버로 CI 검증 + 실제 서버로 상호운용
+- [x] `ControlClient` 상태머신(`control_client.h`, 순수 I/O 없음): hard reset → TLS → key-method 2 → PUSH_REPLY → 키 설치. 가짜 서버로 18개 시나리오 CI 검증(손실·중복·역순·분할·잘못된 키/인증서/푸시·AUTH_FAILED·PUSH_REQUEST 폴백·세션 바인딩). 변이 9개 모두 검출
+- [ ] **실제 서버로 상호운용** (UDP 드라이버 `tools/pf_connect`): 핸드셰이크 성공, key-method 2 수락, 서버 응답 형식(선택 필드 개수) 확인
+- [ ] **EKM 키 분할 확정**: 실제 서버의 DATA_V2 패킷으로 GCM 태그 검증되는 오프셋 탐색 (`EkmLayout` 가설 검증/수정)
 - [ ] keepalive(ping), 재협상(key_id 회전)
 - [ ] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 

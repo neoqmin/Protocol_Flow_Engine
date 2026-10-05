@@ -57,7 +57,7 @@ bool build_key_method2(const KeyMethod2Message& m, KeyMethod2From from, std::vec
 }
 
 KeyMethod2Status parse_key_method2(const uint8_t* d, size_t len, KeyMethod2From from,
-                                   KeyMethod2Message& out, size_t& consumed) {
+                                   KeyMethod2Message& out, size_t& consumed, size_t optional_fields) {
     consumed = 0;
     if (d == nullptr || len < 5) return KeyMethod2Status::Truncated;
     if (d[0] | d[1] | d[2] | d[3]) return KeyMethod2Status::BadHeader;
@@ -76,7 +76,8 @@ KeyMethod2Status parse_key_method2(const uint8_t* d, size_t len, KeyMethod2From 
 
     // Optional trailing fields: absent when the stream ends exactly at a field boundary.
     std::string* fields[] = {&m.username, &m.password, &m.peer_info};
-    for (std::string* f : fields) {
+    for (size_t i = 0; i < 3 && i < optional_fields; ++i) {
+        std::string* f = fields[i];
         if (pos == len) break;
         st = get_string(d, len, pos, *f, true);
         if (st != KeyMethod2Status::Ok) return st;

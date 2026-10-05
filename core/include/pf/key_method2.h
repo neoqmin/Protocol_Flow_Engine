@@ -34,7 +34,10 @@ bool build_key_method2(const KeyMethod2Message& m, KeyMethod2From from, std::vec
 
 // Parses one message from the front of a TLS byte stream. `consumed` = bytes it occupied, so the next control
 // message (e.g. PUSH_REPLY) can be read from the same stream. Truncated = need more bytes.
+// `optional_fields` = how many trailing length-prefixed strings may follow the options string, in the order
+// username, password, peer info (default: all three). A stream that carries further control messages right after
+// the key exchange needs the exact count the peer sends, or the next message would be misread as a length.
 KeyMethod2Status parse_key_method2(const uint8_t* data, size_t len, KeyMethod2From from,
-                                   KeyMethod2Message& out, size_t& consumed);
+                                   KeyMethod2Message& out, size_t& consumed, size_t optional_fields = 3);
 
 }  // namespace pf
