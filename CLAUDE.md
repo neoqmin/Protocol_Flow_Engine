@@ -1,10 +1,11 @@
 # Protocol Flow Engine
 
 OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 Block을 Flow로 연결하고 Compiler/Runtime으로 실행한다.
-클라우드 세션과 로컬 환경 모두에서 이 파일을 읽으므로, **결정이 바뀌면 이 파일과 `docs/DECISIONS.md`를 같이 갱신하고 커밋한다.**
+클라우드 세션과 로컬 환경 모두에서 이 파일을 읽으므로, **결정이 바뀌면 이 파일과 `docs/DECISIONS.md`를 같이 갱신하고 커밋한다. 작업 상태가 바뀌면 `progress.md`의 체크박스를 갱신한다.**
 
 ## 문서 위치
 
+- **작업 진행 현황(체크박스): `progress.md`** — 작업 추적의 정본. 작업을 시작/완료할 때 같은 커밋에서 갱신한다
 - 개발 계획: `plans/Protocol_Flow_Engine_OpenVPN_Development_Plan.md`
 - MCP/AI 확장: `plans/Protocol_Flow_Engine_MCP_AI_Extension_Plan.md`
 - 멀티 플랫폼·Transport: `plans/Protocol_Flow_Engine_MultiPlatform_Transport_Plan.md`

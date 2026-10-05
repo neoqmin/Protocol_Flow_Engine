@@ -24,6 +24,7 @@
 | D-017 | 2026-10-05 | **데이터 채널 AEAD 레이아웃 확정(2.6.19, 32비트 packet-id)**: nonce = packet-id(4B) ‖ 방향·키별 tail 8B, AAD = 헤더4B ‖ packet-id4B, 태그가 암호문 앞. 독립 도구로 GCM 태그 검증까지 통과. 지원 버전은 **2.6.x로 한정**(2.7 등은 XOR 방식 논의가 있어 별도 검증 전까지 비지원) | 확정 |
 | D-018 | 2026-10-05 | **IV_PROTO**: MVP 클라이언트는 `DATA_V2 \| REQUEST_PUSH \| TLS_KEY_EXPORT`(=14)만 광고하고 `cc-exit`/`dyn-tls-crypt`는 광고하지 않음. EKM 라벨 `EXPORTER-OpenVPN-datakeys`(공식 문서) | 확정(서버 응답은 A3에서 확인) |
 | D-019 | 2026-10-05 | **A1 설계 확정(Block API)**: `Drop`(입력 탓, 사유 필수)과 `Error`(우리 쪽 실패)를 분리, Action/Decision별 허용 결과를 러너가 강제(위반 시 `Errored/Internal`). `PacketBuffer`는 headroom/tailroom + move-only + 재할당 없음 + `wipe()`. Flow는 빌드 시 순환·미도달·누락 edge를 검증하고 handler를 미리 해석(직접 dispatch). 상세: `docs/Block_API.md` | 확정 |
+| D-020 | 2026-10-05 | **작업 추적 방식**: 저장소 루트 `progress.md`(`[ ]`/`[~]`/`[x]`/`[!]`)를 정본으로 하고 클라우드·로컬·사람·Claude가 공유. 작업 상태 변경은 해당 커밋에서 같이 갱신. 세션 내 작업 목록은 보조 | 확정 |
 
 ## 미결정 사항 (Open Questions)
 
@@ -39,8 +40,4 @@
 
 ## 현재 진행 상황
 
-- 완료: 참고자료 정리, TDD 스캐폴드, M0 하드닝(파서·device·fallback·하니스·CMake·CI), 마일스톤/프로파일/위협모델 문서, 계획서 정합화
-- 완료(추가): 언어/TLS 라이브러리 확정, 상호운용 랩(`tools/interop/lab.sh`) 구축 및 pcap 관측, CI 5개 잡 통과 확인
-- 완료(추가): 데이터 채널 nonce/AAD·IV_PROTO 확정(D-017/D-018)
-- 완료(추가): **MVP-A A1** — Block API, 오류/버퍼 모델, Flow 빌더·검증·실행기, OpenVPN RX 정적 Flow(파싱→정책→분기→decap). 테스트 unit 59 / flow 18 / regression 1
-- 다음: **MVP-A A2** — Data Plane Block(DATA_V2 AES-256-GCM 복호/암호, packet-id replay). 랩 pcap+세션 키로 만든 골든 벡터를 먼저 작성 (exporter 세부는 A3에서 확정)
+작업 추적은 저장소 루트의 **`progress.md`**(체크박스)가 정본이다 (D-020). 이 문서는 결정만 기록한다.
