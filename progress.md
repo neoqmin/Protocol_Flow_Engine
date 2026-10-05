@@ -2,14 +2,14 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05 (A4 구현 완료, 1시간 soak 진행 중)
+> 마지막 갱신: 2026-10-05 (A4 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
-- [~] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결 (재협상 포함). 구현·ping 완료, 1시간 soak 진행 중
+- [x] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결 (재협상 포함) 완료
 
 ## 요약
 
@@ -17,7 +17,7 @@
 |---|---|
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
-| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A3 완료, A4 진행 중 |
+| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A4 완료, 공통 종료 조건 남음 |
 | MVP-B TCP + 폴백 | ⬜ |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
@@ -102,7 +102,7 @@
 - [x] `pal/linux`: `TunDevice`(ioctl로 주소·MTU·up·라우트, `ip` 불필요), `VpnClient`(UDP+TUN `poll()` 루프, 핑 송신/ping-restart 감시, 통계), 실행 파일 `pf_vpn` (D-029)
 - [x] **터널 ping 성공**: `tests/protocol/run_tunnel.sh` — 수정 없는 OpenVPN 2.6 서버, 클라이언트 netns의 TUN으로 ping(56B·1300B), 서버 `reneg-sec 3`에서 22초간 재협상 7회·패킷 손실 0
 - [x] CTest `pf_tunnel_openvpn`(라벨 protocol) + CI `interop` 잡에 ping 설치. `-Werror`+ASan/UBSan 빌드 통과
-- [ ] 1시간 연결 + 재협상 1회 이상 (`TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600`) — 실행 중, 결과 기록 예정
+- [x] **1시간 연결 + 재협상 1회**: 3720초(기본 `reneg-sec` 3600), 수정 없는 OpenVPN 2.6.19. 재협상 1회(key_id 0→1), 실패 0, 복호 실패 0, 송신 실패 0, 양방향 7273패킷(1.66MB) 일치, ping 손실 0%. *(참고: 클라우드 컨테이너가 유휴 시 재시작되어 앞선 2회는 중단됨 — 코드 결함 아님)*
 - [ ] `ping-restart` 후 재연결 정책 (제품 계층, A4 범위 밖으로 이관 검토)
 
 ### MVP-A 공통 종료 조건
