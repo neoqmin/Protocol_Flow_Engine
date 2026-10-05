@@ -51,7 +51,7 @@ add_library(pf_core STATIC ${PF_CORE_SRCS})
 target_include_directories(pf_core PUBLIC core/include)
 target_link_libraries(pf_core PUBLIC pf_options)
 if(PF_HAVE_OPENSSL)
-  target_link_libraries(pf_core PUBLIC OpenSSL::Crypto)
+  target_link_libraries(pf_core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
   target_compile_definitions(pf_core PUBLIC PF_WITH_OPENSSL=1)
 endif()
 

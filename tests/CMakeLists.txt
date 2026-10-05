@@ -7,6 +7,9 @@
 
 add_library(pf_test_main STATIC support/test_main.cpp)
 target_include_directories(pf_test_main PUBLIC support)
+if(PF_HAVE_OPENSSL)
+  target_sources(pf_test_main PRIVATE support/test_pki.cpp)   # run-time test PKI (no keys on disk)
+endif()
 target_link_libraries(pf_test_main PUBLIC pf_core)
 
 # Tests named *_openssl.cpp need the OpenSSL-backed provider; skipped when it is unavailable.
