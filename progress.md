@@ -8,7 +8,7 @@
 
 ## 지금 할 일 (Next)
 
-- [~] **MVP-A / A3** — Control Plane. tls-crypt·제어 패킷·reliability 완료 → TLS 세션 완료 → 다음: key-method 2 메시지, 키 유도, PUSH 파싱
+- [~] **MVP-A / A3** — Control Plane. tls-crypt·제어 패킷·reliability 완료 → 제어 채널·키 유도·데이터 keepalive를 실제 서버와 검증 완료 → 다음: 재협상(key_id 회전)과 keepalive 세션 로직, 이후 A4(UDP+TUN)
 
 ## 요약
 
@@ -85,10 +85,14 @@
 - [x] IV_PROTO = 14 광고 (`default_peer_info`, 테스트로 고정: 990/dyn-tls-crypt 미광고)
 - [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]` 확정** (랩에서 복원한 nonce tail을 기대값으로)
 - [x] `ControlClient` 상태머신(`control_client.h`, 순수 I/O 없음): hard reset → TLS → key-method 2 → PUSH_REPLY → 키 설치. 가짜 서버로 18개 시나리오 CI 검증(손실·중복·역순·분할·잘못된 키/인증서/푸시·AUTH_FAILED·PUSH_REQUEST 폴백·세션 바인딩). 변이 9개 모두 검출
-- [ ] **실제 서버로 상호운용** (UDP 드라이버 `tools/pf_connect`): 핸드셰이크 성공, key-method 2 수락, 서버 응답 형식(선택 필드 개수) 확인
-- [ ] **EKM 키 분할 확정**: 실제 서버의 DATA_V2 패킷으로 GCM 태그 검증되는 오프셋 탐색 (`EkmLayout` 가설 검증/수정)
+- [x] **실제 서버로 상호운용** (`tools/pf_connect`, UDP): 수정 없는 OpenVPN 2.6.19와 핸드셰이크(~10ms) 성공, key-method 2 수락, 서버 응답의 선택 필드 3개 확인(계측으로 발견·수정)
+- [x] **EKM 키 분할 확정** (D-026): 모든 오프셋 탐색에서 GCM 태그 검증되는 조합이 유일, tx는 서버가 핑을 수락
+- [x] **데이터 채널 양방향 keepalive** 실제 서버와 교환 (우리 TX/RX 블록 사용: 송신 핑을 서버가 복호, 서버 핑을 우리가 replay 검사→복호)
+- [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡. 키 분할을 틀리게 바꾸면 실패함을 확인
+- [ ] 재협상(SOFT_RESET, key_id 회전): 서버가 시작하는 재협상 처리, 새 키 설치, 이전 키 유예 수신
+- [ ] keepalive 스케줄링(ping / ping-restart 타이머)을 코어 세션 로직으로 (현재는 pf_connect 데모 루프)
 - [ ] keepalive(ping), 재협상(key_id 회전)
-- [ ] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
+- [x] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
 ### A4 — Linux 통합
 

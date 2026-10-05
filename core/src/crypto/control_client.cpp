@@ -224,7 +224,7 @@ void ControlClient::handle_control_message(const std::string& msg) {
         case ControlMessageKind::AuthFailed: fail("AUTH_FAILED: " + msg); return;
         case ControlMessageKind::Restart: fail("server sent RESTART: " + msg); return;
         case ControlMessageKind::Halt: fail("server sent HALT: " + msg); return;
-        default: return;                                       // INFO, PUSH_REQUEST from a server, unknown: ignore
+        default: ++stats_.ignored_control_messages; return;    // INFO, PUSH_REQUEST from a server, unknown: ignore
     }
 }
 
@@ -234,6 +234,11 @@ bool ControlClient::install_keys() {
     if (cfg_.keys == nullptr) return true;                     // caller only wants the control channel
     const KeyRef tr = cfg_.keys->add(tx), rr = cfg_.keys->add(rx);
     return cfg_.keys->bind_tx(0, tr) && cfg_.keys->bind_rx(0, rr);
+}
+
+bool ControlClient::export_ekm_for_probe(bool empty_context, uint8_t* out, size_t n) const {
+    static const uint8_t kEmpty = 0;
+    return tls_->export_keying_material(kOpenVpnEkmLabel, empty_context ? &kEmpty : nullptr, 0, out, n);
 }
 
 std::vector<std::vector<uint8_t>> ControlClient::poll(uint64_t now_ms, uint32_t unix_s) {

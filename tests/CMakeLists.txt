@@ -51,6 +51,13 @@ endif()
 
 # Protocol tests need external OpenVPN binaries; opt-in only.
 option(PF_PROTOCOL_TESTS "Enable OpenVPN interop tests" OFF)
+if(PF_PROTOCOL_TESTS AND TARGET pf_connect)
+  # pf_connect vs an unmodified OpenVPN 2.6 server in a network namespace. Needs root; exits 77 (skipped) otherwise.
+  add_test(NAME pf_interop_openvpn
+           COMMAND ${CMAKE_COMMAND} -E env PF_CONNECT=$<TARGET_FILE:pf_connect>
+                   bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_interop.sh)
+  set_tests_properties(pf_interop_openvpn PROPERTIES LABELS protocol TIMEOUT 180 SKIP_RETURN_CODE 77)
+endif()
 if(PF_PROTOCOL_TESTS)
   file(GLOB PROTO_SRCS CONFIGURE_DEPENDS protocol/test_*.cpp)
   if(PROTO_SRCS)

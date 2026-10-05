@@ -66,8 +66,36 @@ ack_len(1) | ack ids(4 each, BE) | remote session_id(8, ack_len > 0일 때만) |
 
 스톡 클라이언트는 `IV_PROTO` 비트 9(DYN_TLS_CRYPT)를 광고해 핸드셰이크 이후 제어 채널 키가 TLS 세션에서 파생된 키로 바뀐다(랩에서 초기 핸드셰이크 이후 패킷 14개가 정적 키로 검증되지 않음). 우리 클라이언트는 이 비트를 광고하지 않으므로(D-018) **전 구간 정적 tls-crypt 키**를 쓴다. 상호운용 테스트(A3-6)에서 서버가 그렇게 응답하는지 확인한다.
 
-## 5. 남은 `[검증]`
+## 5. key-method 2와 PUSH [관측·검증됨: 실제 서버와 상호운용]
 
-- ~~제어 패킷 평문 헤더 순서/크기, P_ACK_V1 형식~~ → §3에서 확정
-- reliability 파라미터(윈도우, 타이머)가 실제 서버와 맞는지 → A3-6 상호운용
-- key-method 2 메시지 포맷, TLS exporter 컨텍스트/크기/분할 → A3-5
+`pf_connect`(우리 `ControlClient`)가 **수정 없는 OpenVPN 2.6.19 서버**와 hard reset → tls-crypt → TLS 1.3 → key-method 2 → PUSH_REPLY까지 약 10 ms에 완료하고, 이후 데이터 채널 keepalive를 양방향으로 교환한다(`tests/protocol/run_interop.sh`, CTest 라벨 `protocol`).
+
+- **우리가 보낸 key-method 2**: `literal 0 | 2 | pre_master(48)+random1(32)+random2(32) | options | username(빈) | password(빈) | peer info`. 서버가 수락하고 PUSH_REPLY를 보냄.
+  - options: `V4,dev-type tun,link-mtu 1549,tun-mtu 1500,proto UDPv4,cipher AES-256-GCM,auth [null-digest],keysize 256,key-method 2,tls-client`
+  - peer info: `IV_VER=2.6.0`(우리가 구현한 프로토콜 수준), `IV_PLAT=linux`, `IV_PROTO=14`, `IV_CIPHERS=AES-256-GCM`
+- **서버의 key-method 2 응답**: 옵션 문자열이 우리 기대값(`...,tls-server`)과 **정확히 일치**. 옵션 뒤에 **선택 필드 3개**(username, password, peer info; 모두 빈 값 `00 00`씩)가 온다. 처음에 2개로 가정했을 때 `ignored_control_messages=2`(남은 0 바이트)로 드러나 3개로 수정했고, 수정 후 0.
+- **PUSH_REPLY** (우리는 `cc-exit`/`dyn-tls-crypt`를 광고하지 않음): `PUSH_REPLY,route-gateway 10.77.0.1,topology subnet,ping 2,ping-restart 8,ifconfig 10.77.0.2 255.255.255.0,peer-id 0,cipher AES-256-GCM,key-derivation tls-ekm`
+  - `protocol-flags`는 오지 않고 **`key-derivation tls-ekm`** 으로 협상됨(공식 문서 설명대로). 파서는 둘 다 인식.
+  - `REQUEST_PUSH`를 광고했으므로 서버가 PUSH_REQUEST 없이 스스로 PUSH_REPLY를 보냄(PUSH_REQUEST 폴백은 2초 후에만 동작).
+- **정적 tls-crypt 키로 전 구간 동작**: dyn-tls-crypt를 광고하지 않으면 서버도 키를 바꾸지 않음.
+
+## 6. 데이터 채널 키 유도 (tls-ekm) [관측·검증됨]
+
+| 항목 | 확정 값 |
+|---|---|
+| exporter 라벨 | `EXPORTER-OpenVPN-datakeys` [문서] |
+| 컨텍스트 | 없음 (빈 컨텍스트와 동일한 출력; 둘 다 검증됨) |
+| 내보내는 바이트 수 | **256** (TLS 1.3 exporter는 길이가 출력에 영향을 주므로 256이어야 함) |
+| 클라이언트 **rx** (서버→클라) | 암호 키 = `km[128:160]`, GCM nonce tail = `km[192:200]` |
+| 클라이언트 **tx** (클라→서버) | 암호 키 = `km[0:32]`, GCM nonce tail = `km[64:72]` |
+| 서버 | tx/rx를 바꿔서 사용 |
+
+- rx 검증: 서버가 보낸 DATA_V2 패킷 3개에서 모든 (키 오프셋, tail 오프셋) 조합을 시도해 **GCM 태그가 검증되는 조합이 위 하나뿐**임을 확인(`pf_connect --probe-keys`).
+- tx 검증: 우리가 보낸 핑을 서버가 복호화해 `RECEIVED PING PACKET`으로 기록. tx 오프셋을 틀리게 바꾸면 상호운용 테스트가 `server never accepted a data packet from us`로 실패함을 확인.
+- 이 레이아웃은 `EkmLayout` 기본값이다. 키 방향은 OpenVPN의 `key2` 구조(2 × (cipher 64B + hmac 64B))와 일치하는 형태: 구간 0 = 클라이언트 송신, 구간 1 = 클라이언트 수신, nonce tail은 각 구간 hmac 슬롯의 앞 8바이트.
+
+## 7. 남은 `[검증]` / 미구현
+
+- 재협상(SOFT_RESET, key_id 회전): 서버는 `reneg-sec`(기본 3600초) 후 시작. 우리는 현재 SOFT_RESET을 **무시**한다(`stats.ignored_soft_resets`) → 다음 단계.
+- keepalive 스케줄링(ping/ping-restart 타이머)을 코어에 구현(지금은 `pf_connect`의 데모 루프만).
+- reliability 파라미터(윈도우 4, RTO 2초 등)는 실제 서버와 정상 동작했으나(손실 없는 로컬 링크), 손실/지연 환경 검증은 별도.

@@ -30,7 +30,7 @@ struct FakeServerConfig {
         "ifconfig 10.77.0.2 255.255.255.0,peer-id 7,cipher AES-256-GCM,protocol-flags cc-exit tls-ekm,tun-mtu 1500";
     bool push_without_request = true;                    // REQUEST_PUSH semantics: reply right after key exchange
     bool send_push = true;                               // false: never reply (client must give up / ask)
-    size_t km2_optional_fields = 2;                      // username+password (peer info omitted), like the real server (assumed)
+    size_t km2_optional_fields = 3;                      // username, password, peer info (empty): what the real server sends (observed)
     pf::EkmLayout layout;
     pf::ReliableConfig reliable;
     std::string send_instead_of_push;                    // if set, send this control message instead (e.g. AUTH_FAILED)

@@ -13,6 +13,7 @@ set -euo pipefail
 OUT="${1:-tools/interop/out}"; SECS="${2:-14}"
 shift $(( $# > 2 ? 2 : $# )) || true
 PORT=11940; NS=pfct; HOST_IP=10.99.0.1; NS_IP=10.99.0.2
+RENEG="${LAB_RENEG:-6}"        # seconds; large value keeps the session free of renegotiations
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"
 
 # --- test-only PKI (EC P-256), 2-day validity ---------------------------------
@@ -39,6 +40,7 @@ cleanup() {
 trap cleanup EXIT
 cleanup_pre() { ip netns del $NS 2>/dev/null || true; ip link del pfv0 2>/dev/null || true; }
 cleanup_pre
+export OUT HOST_IP PORT
 
 ip netns add $NS
 ip link add pfv0 type veth peer name pfv1
@@ -52,11 +54,23 @@ openvpn --dev pfs0 --dev-type tun --proto udp --local $HOST_IP --lport $PORT \
   --server 10.77.0.0 255.255.255.0 --topology subnet \
   --cipher AES-256-GCM --data-ciphers AES-256-GCM --tls-crypt tc.key \
   --ca ca.crt --cert server.crt --key server.key --dh none \
-  --tls-version-min 1.3 --remote-cert-tls client --verb 7 --reneg-sec 6 \
+  --tls-version-min 1.3 --remote-cert-tls client --verb 7 --reneg-sec "$RENEG" \
   --keepalive 2 8 --disable-dco --log server.log "$@" & SPID=$!
 sleep 1
 tcpdump -i pfv0 -n -U -w capture.pcap "udp port $PORT" >/dev/null 2>&1 & TPID=$!
 sleep 0.5
+if [ -n "${LAB_CLIENT_CMD:-}" ]; then
+  # Run an alternative client (e.g. pf_connect) inside the namespace instead of the stock OpenVPN client.
+  # Placeholders available to the command: $OUT (this dir), $HOST_IP, $PORT.
+  ip netns exec $NS bash -c "$LAB_CLIENT_CMD" > pf_client.log 2>&1 &
+  CPID=$!
+  rc=0; wait $CPID || rc=$?
+  CPID=
+  echo "$rc" > pf_client.exit
+  echo "--- alternative client output (exit code $rc) ---"; cat pf_client.log
+  echo "pcap packets: $(tcpdump -nr capture.pcap 2>/dev/null | wc -l) ($OUT/capture.pcap)"
+  exit 0
+fi
 ip netns exec $NS openvpn --client --dev pfc0 --dev-type tun --proto udp \
   --remote $HOST_IP $PORT --nobind --cipher AES-256-GCM --data-ciphers AES-256-GCM \
   --tls-crypt tc.key --ca ca.crt --cert client.crt --key client.key \

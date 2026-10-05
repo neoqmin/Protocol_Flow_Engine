@@ -55,6 +55,12 @@ if(PF_HAVE_OPENSSL)
   target_compile_definitions(pf_core PUBLIC PF_WITH_OPENSSL=1)
 endif()
 
+# Interop/diagnostic tool (POSIX sockets): drives ControlClient against a real server.
+if(PF_HAVE_OPENSSL AND UNIX)
+  add_executable(pf_connect tools/pf_connect/main.cpp)
+  target_link_libraries(pf_connect PRIVATE pf_core)
+endif()
+
 if(PF_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)

@@ -56,3 +56,16 @@ jobs:
       - run: |
           mkdir -p corpus
           for f in build/tests/fuzz_*; do [ -x "$f" ] && "$f" -max_total_time=20 corpus; done
+
+  interop:
+    # Our client against an UNMODIFIED OpenVPN 2.6 server (network namespace, needs sudo).
+    # Non-blocking until it has run on GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev openvpn tcpdump iproute2 openssl
+      - run: openvpn --version | head -1
+      - run: cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON
+      - run: cmake --build build
+      - run: sudo env "PATH=$PATH" ctest --test-dir build -L protocol --output-on-failure

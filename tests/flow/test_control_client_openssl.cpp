@@ -109,6 +109,7 @@ PF_TEST(client_completes_handshake_and_installs_matching_data_keys) {
     PF_CHECK(tx->key == r.server->rx_key.key && tx->nonce_tail == r.server->rx_key.nonce_tail);
     PF_CHECK(rx->key == r.server->tx_key.key && rx->nonce_tail == r.server->tx_key.nonce_tail);
     PF_CHECK(tx->key != rx->key);
+    PF_CHECK_EQ(r.client->stats().ignored_control_messages, 0u);     // the key-method reply was consumed exactly
 }
 
 PF_TEST(client_sends_documented_key_method_2_with_mvp_profile_values) {

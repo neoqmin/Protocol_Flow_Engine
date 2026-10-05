@@ -30,7 +30,7 @@ struct ControlClientConfig {
     TlsConfig tls;                                                // role must be Client
     std::string options_string = default_client_options();
     std::string peer_info = default_peer_info();
-    size_t server_km2_optional_fields = 2;      // username + password follow the server's options string (see notes)
+    size_t server_km2_optional_fields = 3;      // username, password, peer info follow the server's options string (observed: 3)
     size_t max_payload = 1100;                  // TLS bytes per CONTROL_V1 message
     ReliableConfig reliable;
     uint32_t push_request_delay_ms = 2000;      // ask for the push if the server has not volunteered it
@@ -54,6 +54,7 @@ public:
         uint32_t datagrams_out = 0, retransmits = 0;
         uint32_t auth_failed = 0, replays = 0, malformed = 0, wrong_session = 0, not_control = 0;
         uint32_t ignored_soft_resets = 0;
+        uint32_t ignored_control_messages = 0;   // control strings we did not act on (incl. empty ones = stream misalignment)
     };
 
     // nullptr + `error` if the configuration is unusable.
@@ -73,6 +74,10 @@ public:
     const Stats& stats() const { return stats_; }
     const std::string& server_options() const { return server_options_; }
     const std::vector<std::string>& warnings() const { return warnings_; }
+
+    // DIAGNOSTIC (interop key-layout probe): the raw exporter output for the OpenVPN label. These bytes ARE key
+    // material: never log or store them. Only valid once the TLS handshake finished.
+    bool export_ekm_for_probe(bool empty_context, uint8_t* out, size_t n) const;
 
 private:
     explicit ControlClient(ControlClientConfig cfg);

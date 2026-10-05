@@ -30,6 +30,8 @@
 | D-023 | 2026-10-05 | **에디터 사용자 범위 확정**: 프로토콜 개발자뿐 아니라 **보안 관리자·운영자도 정책(Flow)을 편집**한다. 따라서 에디터 PoC부터 (1) 역할별 권한(보기/편집/검증/승인/배포 분리), (2) 변경 승인 워크플로(작성자≠승인자), (3) 감사 로그, (4) Flow 버전 관리와 서명, (5) 비개발자용 안전장치(위험한 Block 편집 제한, 검증 통과 전 배포 불가)를 요구사항에 포함한다. MCP 계획의 권한 모델(§17~§20)과 연계. 키 값은 어떤 역할에도 노출하지 않고 Key Reference만 다룬다 | 확정 |
 | D-024 | 2026-10-05 | **tls-crypt 와이어/키 배치 확정(2.6.19)**: `wire = op_keyid(1)|session_id(8)|packet_id(4)|net_time(4)|tag(32)|ct`, `tag = HMAC-SHA256(Ka, wire[0:17]‖plaintext)`, IV = tag[0:16], AES-256-CTR. 정적 키 파일은 64B×4 구간(K0..K3)의 앞 32B씩 사용: **클라이언트 tx=(K2 암호, K3 HMAC), rx=(K0, K1)**. replay는 (net_time, packet_id)로, 인증 성공 후에만 상태 갱신. 근거: 실제 패킷의 HMAC 태그 검증. 상세: `docs/OpenVPN_Control_Plane_Notes.md`. 랩 출력 위치를 `build/`에서 `tools/interop/out/`으로 이동(빌드 디렉터리 삭제 시 유실 방지) | 확정 |
 | D-025 | 2026-10-05 | **제어 패킷 평문 포맷 확정(2.6.19)**: `ack_len|acks(4B BE)|remote_sid(8, ack>0)|[message_id|payload]`, `P_ACK_V1`은 message 없음. 골든 14개 파싱→재빌드 일치. **reliability는 순수 로직(시계 주입)**: 송신 윈도우 4, RTO 2s×2 상한 16s, 6회 실패, 수신 윈도우 8, 중복은 재-ACK, ACK는 최신 우선 최대 8개. 파라미터는 우리 선택이며 A3-6 상호운용에서 검증 | 확정(포맷) / 파라미터는 상호운용 검증 대기 |
+| D-026 | 2026-10-05 | **EKM 키 유도 레이아웃 확정**(실제 OpenVPN 2.6.19 서버로 검증): label `EXPORTER-OpenVPN-datakeys`, 컨텍스트 없음, **256바이트** export. 클라이언트 tx = key `[0:32]` + nonce tail `[64:72]`, rx = key `[128:160]` + tail `[192:200]`(서버는 반대). 근거: 서버 패킷의 모든 오프셋 조합 탐색에서 GCM 태그가 검증되는 조합이 유일, 서버가 우리 핑을 복호화해 수락, 오프셋을 틀리게 하면 상호운용 테스트 실패 | 확정 |
+| D-027 | 2026-10-05 | **제어 채널 상호운용 확정**: key-method 2 메시지(옵션·peer info 값)가 수정 없는 서버에 수락됨. 서버 응답은 옵션 뒤에 **선택 필드 3개**(username, password, peer info; 빈 값). 서버는 `REQUEST_PUSH` 광고 시 PUSH_REQUEST 없이 PUSH_REPLY를 보내고 `key-derivation tls-ekm`으로 협상(`protocol-flags` 아님). `IV_VER`는 구현한 프로토콜 수준인 `2.6.0`. **자동 상호운용 테스트**(`tests/protocol/run_interop.sh`, CTest 라벨 `protocol`, root 필요)와 CI `interop` 잡(초기 비차단)을 추가 | 확정 |
 
 ## 미결정 사항 (Open Questions)
 
@@ -38,7 +40,7 @@
 3. 모바일 TLS/암호 라이브러리 (BoringSSL 등) (PM-1) — 데스크톱 MVP는 OpenSSL 3.x(D-014)
 4. 플랫폼 지원 순서 (제안: Linux → Windows → Android → macOS → iOS)
 5. OpenVPN 연동 경계 조사: management interface vs DCO 경계 (PM-8)
-6. 남은 `[검증]`: TLS exporter 컨텍스트/내보내는 바이트 수/방향별 키·nonce tail 분할 → A3 핸드셰이크 상호운용 테스트로 확정 (라벨, AEAD nonce/AAD, IV_PROTO 비트는 D-017/D-018로 확정)
+6. ~~남은 `[검증]` (exporter 등)~~ → D-026/D-027로 확정. 남은 것: 재협상(SOFT_RESET) 동작, 손실·지연 환경에서의 reliability 검증
 7. 성능 목표 수치 (MVP-A 기준선 측정 후), iOS 메모리 상한
 8. ~~오류 모델 / 버퍼 모델~~ → D-019 확정
 9. ~~에디터 사용자 범위~~ → D-023 확정 (역할 목록·승인 단계 세부는 PM-6 진입 시 설계)
