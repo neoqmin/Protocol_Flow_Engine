@@ -86,7 +86,7 @@ UDP -> TCP -> TCP via Proxy -> Relay
 
 - 연결 실패(타임아웃, 거부)를 보고하면 다음 Transport로 넘어간다.
 - 모든 Transport를 소진하면 오류로 종료한다 (`exhausted()`).
-- 프록시만 허용되는 환경용 `proxy_only` 정책을 별도로 제공한다.
+- 직접 UDP/TCP가 막힌 환경용 `proxy_or_relay` 정책(프록시 → Relay)을 별도로 제공한다.
 - 구현: `core/include/pf/transport_fallback.h` (순수 로직, I/O 없음).
 - 정책은 Flow의 Policy Block으로 노출하여 DSL/GUI에서 설정할 수 있게 한다 (후속).
 
