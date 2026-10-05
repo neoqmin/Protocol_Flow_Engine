@@ -34,16 +34,33 @@ ciphertext = AES-256-CTR(Ke, iv, plaintext)           (길이 = plaintext 길이
 - `packet_id`는 1부터 증가, `net_time`은 epoch 초(관측: 1791182048). 이 둘이 tls-crypt의 replay 방지 필드다. 문서: 한 키로 방향당 2^48 메시지 이하 [문서].
 - 복호된 첫 패킷(HARD_RESET_CLIENT_V2)의 평문 = `00 00000000` → reliability 헤더의 `ack_len=0`과 메시지 packet-id `0` [관측].
 
-## 3. 제어 패킷(reliability) 헤더 [문서 + 관측]
+## 3. 제어 패킷(reliability) 평문 [관측·검증됨]
 
-복호된 평문의 필드 순서 [문서: 공식 프로토콜 개요, tls-auth 설명을 tls-crypt에 맞춰 적용]:
+tls-crypt를 벗긴 평문의 필드 순서. 14개 실제 패킷을 파싱한 뒤 **다시 만들면 바이트가 100% 일치**함을 골든 테스트로 확인(`tests/regression/test_golden_control.cpp`). 공식 프로토콜 개요 문서의 순서와도 일치.
 
 ```text
-[ack_len (1)] [ack packet-ids (4 * ack_len)] [remote session_id (8, ack_len > 0일 때만)] [message packet-id (4)] [TLS payload]
+ack_len(1) | ack ids(4 each, BE) | remote session_id(8, ack_len > 0일 때만) | [message_id(4, BE) | payload]
 ```
-- `P_ACK_V1`에는 message packet-id와 TLS payload가 없다 [검증: pcap으로 확인 예정].
-- `P_CONTROL_HARD_RESET_*`는 TLS payload가 비어 있다 [관측: client hard reset 평문 5바이트].
-- 신뢰성: "acknowledge and retransmit" 모델, ACK는 `P_ACK_*` 또는 `P_CONTROL_*`에 얹힘 [문서].
+
+- `P_ACK_V1`: message_id·payload 없음, ack_len ≥ 1. 그 외 opcode는 message_id가 항상 있음.
+- `HARD_RESET_CLIENT_V2`: `00 00000000` (ack 없음, id 0, payload 없음). `HARD_RESET_SERVER_V2`: 클라이언트 id 0을 ACK(원격 session_id = 클라이언트 session) + 자기 id 0, payload 없음.
+- `CONTROL_V1`의 payload = TLS 레코드 바이트 (`16 03 01..` ClientHello, `16 03 03..` ServerHello, `14 03 03 00 01 01` CCS, `17 03 03..` 암호화된 핸드셰이크/앱 데이터).
+- message_id는 방향별로 0부터 1씩 증가. 서버 메시지 0..5가 순서대로 도착(재정렬 불필요한 정상 경로).
+- ACK 배열은 **최신 id가 앞**에 오고 직전 id들이 반복되어 나열됨(예 `[3,2,1,0]`, 관측 최대 6개). 파서는 순서와 무관하게 처리하고, 우리 빌더는 최신 우선으로 최대 8개.
+- 모든 client→server 메시지가 서버 메시지 id를 ACK함(골든 테스트로 확인).
+
+### 3.1 reliability 동작과 파라미터 (우리의 선택)
+
+프로토콜이 요구하는 것은 "받은 메시지를 ACK하고, ACK되지 않은 메시지는 재전송"뿐이다 [문서]. 구체 값은 우리 구현의 선택이며 서버 상호운용(A3-6)에서 검증한다.
+
+| 파라미터 | 값 | 비고 |
+|---|---|---|
+| 송신 윈도우 | 4 | 미확인 메시지 최대 개수 |
+| 최초 재전송 시간 | 2000 ms, 시도마다 2배, 상한 16000 ms | |
+| 최대 전송 시도 | 6회 후 세션 실패 | 약 46초 |
+| 수신 윈도우 | next_expected + 8 | 범위 밖은 ACK하지 않음(상대가 재전송) |
+| 중복 수신 | 다시 ACK (상대가 우리 ACK를 놓쳤을 수 있음) | |
+| 시계 | 호출자가 `now_ms` 주입 | 순수 로직, 결정적 테스트 |
 
 ## 4. dyn-tls-crypt [관측] — MVP는 비활성
 
@@ -51,6 +68,6 @@ ciphertext = AES-256-CTR(Ke, iv, plaintext)           (길이 = plaintext 길이
 
 ## 5. 남은 `[검증]`
 
-- 제어 패킷 평문 헤더의 정확한 필드 순서/크기(ACK 포함 케이스), P_ACK_V1 형식 → A3-3에서 pcap 복호 후 확정
+- ~~제어 패킷 평문 헤더 순서/크기, P_ACK_V1 형식~~ → §3에서 확정
+- reliability 파라미터(윈도우, 타이머)가 실제 서버와 맞는지 → A3-6 상호운용
 - key-method 2 메시지 포맷, TLS exporter 컨텍스트/크기/분할 → A3-5
-- 재전송 타이머·윈도우 크기 등 파라미터(동작 호환 범위) → A3-3/A3-6

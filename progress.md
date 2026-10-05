@@ -8,7 +8,7 @@
 
 ## 지금 할 일 (Next)
 
-- [~] **MVP-A / A3** — Control Plane. tls-crypt 완료 → 다음: 제어 패킷 포맷 + reliability layer (골든 평문으로 TDD)
+- [~] **MVP-A / A3** — Control Plane. tls-crypt·제어 패킷·reliability 완료 → 다음: TLS 1.3 메모리 BIO 핸드셰이크(OpenSSL)
 
 ## 요약
 
@@ -77,8 +77,8 @@
 
 - [x] **tls-crypt 와이어/키 배치 확정**: pcap + 테스트 키로 HMAC 태그 검증 (`tools/interop/verify_tls_crypt.py`). client tx=(K2,K3), rx=(K0,K1)
 - [x] **tls-crypt wrap/unwrap 구현** (`TlsCryptChannel`: packet-id/net_time replay, 인증 후에만 상태 갱신, id 고갈 시 중단). 골든 14개 개봉 + **재봉인 시 OpenVPN과 바이트 일치**
-- [ ] 제어 패킷 평문 포맷 파싱/빌드 (ACK 배열, 원격 세션ID, 패킷ID, P_ACK_V1 형식 확정)
-- [ ] reliability layer (수신 재정렬·ACK 생성, 송신 재전송 타이머, 시계 주입)
+- [x] 제어 패킷 평문 포맷 파싱/빌드 (`control_packet.h`): ACK 배열, 원격 세션ID, message_id, P_ACK_V1. 골든 14개 파싱→재빌드 바이트 일치
+- [x] reliability layer (`reliable.h`): 수신 재정렬·중복 처리·ACK 큐(최신 우선), 송신 윈도우·지수 백오프·실패 판정, 시계 주입. 서버 메시지 0..5 순서 도착/ACK 커버리지를 실제 캡처로 검증
 - [ ] TLS 1.3 (메모리 BIO, OpenSSL) 핸드셰이크
 - [ ] key-method 2 메시지, IV_PROTO = 14 광고
 - [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]` 확정** (랩에서 복원한 nonce tail을 기대값으로)

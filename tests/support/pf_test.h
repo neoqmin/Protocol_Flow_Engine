@@ -61,7 +61,7 @@ std::string show(const T& v) {
     do { if (!(cond)) pf_test::record(__FILE__, __LINE__, "CHECK(" #cond ") failed"); } while (0)
 
 #define PF_CHECK_EQ(a, b)                                                    \
-    do { const auto& _a = (a); const auto& _b = (b);                         \
+    do { const auto _a = (a); const auto _b = (b);   /* by value: never dangle on temporaries */ \
          if (!(_a == _b))                                                    \
              pf_test::record(__FILE__, __LINE__, "CHECK_EQ(" #a ", " #b ") failed: " + \
                              pf_test::show(_a) + " != " + pf_test::show(_b)); } while (0)
