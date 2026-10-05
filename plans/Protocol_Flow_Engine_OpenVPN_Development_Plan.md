@@ -1420,6 +1420,8 @@ Protocol Flow JSON
 
 즉 **화면과 편집 기능은 오픈소스를 최대한 활용하고, 프로토콜 의미/보안/Runtime은 자체 구현**한다.
 
+오픈소스를 확장할 때 upstream 업데이트를 방해하지 않기 위한 규칙은 `docs/Upstream_Extension_Policy.md`를 따른다. (원본 수정 금지, Adapter 경유, 패치는 최후 수단)
+
 ---
 
 # 28. Visual Flow Editor 후보
