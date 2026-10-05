@@ -152,7 +152,21 @@ ETH_PARSE, ARP_HANDLE, BROADCAST_FILTER, MAC_LEARNING(브리지 시)
 
 ---
 
-# 9. 미결정 사항
+# 9. MVP 범위
+
+MVP는 오픈소스 수정이 필요 없는 항목만 포함한다 (`docs/Upstream_Extension_Policy.md` §9).
+
+| 단계 | MVP 포함 | 비고 |
+|---|---|---|
+| M0~M4 | O | Device 매트릭스, Fallback, UDP/TCP/프록시 Transport (모두 자체 구현) |
+| M5, M6 | O | PAL Device: OS 공개 API 사용 (Wintun은 수정 없는 배포 바이너리) |
+| M7 Relay / Hole Punching | 자체 구현 시에만 | 기존 도구를 **수정 없이** 쓰는 경우는 가능, 패치가 필요하면 Post-MVP |
+| M8 TAP 전용 Block | O | |
+| Kernel Runtime / DCO 연동 | X (Post-MVP) | OpenVPN 계획서 §25 참고 |
+
+---
+
+# 10. 미결정 사항
 
 1. Relay를 자체 구현할지 기존 도구를 쓸지
 2. 구현 언어: C++17 고정 vs Rust 병행

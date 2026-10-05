@@ -960,7 +960,7 @@ DECRYPT Block의 내부 구현 교체 가능
 
 ---
 
-## Phase 4 — OpenVPN DCO Adapter
+## Phase 4 — OpenVPN DCO Adapter (Post-MVP)
 
 목표:
 
@@ -1021,7 +1021,7 @@ Branch 최소화
 
 ---
 
-## Phase 7 — User/Kernel Dual Runtime
+## Phase 7 — User/Kernel Dual Runtime (Kernel은 Post-MVP)
 
 목표:
 
@@ -1292,6 +1292,17 @@ ProtocolFlow/
 
 처음부터 전체 DSL/GUI/Kernel을 만들지 않는다.
 
+## MVP 공통 제약
+
+```text
+MVP에서는 기존 오픈소스(OpenVPN, DCO 등)의 소스를 수정하거나 패치해야 하는 작업을 하지 않는다.
+```
+
+- OpenVPN 프로토콜은 **우리 Block으로 독립 구현**하고, **수정하지 않은 OpenVPN과 wire 호환**되는지를 테스트(`tests/protocol`, `tests/regression`)로 검증한다.
+- 오픈소스는 **수정 없이** 사용한다: 라이브러리 링크(예: 암호 라이브러리), 외부 도구 호출, 상호운용 상대로 실행.
+- 오픈소스 수정/패치/DCO 커널 연동이 필요한 작업은 **Post-MVP**로 미룬다 (아래 참고).
+- 정책 상세: `docs/Upstream_Extension_Policy.md` §9
+
 ### MVP-1
 
 ```text
@@ -1299,7 +1310,7 @@ C++ Block API
     +
 Static Flow
     +
-OpenVPN RX/TX
+OpenVPN RX/TX (독립 구현, User Runtime)
 ```
 
 ### MVP-2
@@ -1309,7 +1320,7 @@ Crypto Provider
     +
 Key Reference
     +
-OpenVPN DCO Adapter
+수정 없는 OpenVPN과의 상호운용 테스트 (Interop)
 ```
 
 ### MVP-3
@@ -1325,8 +1336,6 @@ IR
 ### MVP-4
 
 ```text
-Kernel Runtime
-    +
 User Runtime
     +
 Performance Optimization
@@ -1337,6 +1346,15 @@ Performance Optimization
 ```text
 GUI Flow Editor
 ```
+
+## Post-MVP (오픈소스 수정/연동이 필요한 항목)
+
+| 항목 | 이유 | 비고 |
+|---|---|---|
+| Phase 4 OpenVPN DCO Adapter | 기존 DCO 경계에 연결, 패치가 필요할 수 있음 | MVP 이후 경계 조사 후 결정 |
+| Kernel Runtime (Phase 7) | DCO/커널과 통합 시 upstream 수정 가능성 | 독립 모듈로 가능한지 먼저 검토 |
+| Shared Memory Crypto Extension (§15) | 커널 데이터 경로 변경 필요 | 〃 |
+| OpenVPN 소스 패치가 필요한 모든 기능 | 정책 §1 6순위 | upstream 제안 우선 |
 
 ---
 
