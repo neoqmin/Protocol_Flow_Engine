@@ -80,9 +80,11 @@
 - [x] 제어 패킷 평문 포맷 파싱/빌드 (`control_packet.h`): ACK 배열, 원격 세션ID, message_id, P_ACK_V1. 골든 14개 파싱→재빌드 바이트 일치
 - [x] reliability layer (`reliable.h`): 수신 재정렬·중복 처리·ACK 큐(최신 우선), 송신 윈도우·지수 백오프·실패 판정, 시계 주입. 서버 메시지 0..5 순서 도착/ACK 커버리지를 실제 캡처로 검증
 - [x] TLS 1.3 메모리 BIO 세션 (`tls_session.h`): feed/step/take_output 구동 방식, 1바이트 단위 전달·100KB 전송·단편화 검증, 피어 인증서 항상 검증 + EKU(serverAuth/clientAuth) 강제, TLS 1.3 전용, 티켓 비활성, 키 불일치/CA 없음 거부, exporter 노출. 테스트 PKI는 실행 시점에 생성(키 미커밋). *(실제 OpenVPN 서버와의 핸드셰이크는 A3-6에서)*
-- [ ] key-method 2 메시지, IV_PROTO = 14 광고
+- [x] key-method 2 메시지 빌드/파싱 (`key_method2.h`): 문서화된 필드 순서, 클라이언트/서버 key source 차이, 선택 필드, 소비 바이트 보고(뒤따르는 PUSH 읽기용), 잘림/악성 길이 방어 *(실제 서버 수락 여부는 A3-6에서)*
+- [x] PUSH_REPLY 파싱 (`push.h`): **실제 2.6.19 응답 문자열**로 검증, 라우트/미지 옵션 보존, 잘못된 값 거부, MVP 지원 여부 판정(AES-256-GCM·tls-ekm·subnet)
+- [ ] IV_PROTO = 14 광고 (ControlClient에서)
 - [ ] 키 유도 (TLS exporter, `EXPORTER-OpenVPN-datakeys`) — **컨텍스트/크기/분할 `[검증]` 확정** (랩에서 복원한 nonce tail을 기대값으로)
-- [ ] PUSH_REQUEST / PUSH_REPLY 파싱 (ifconfig, route, peer-id, cipher, keepalive) 후 `KeyStore`에 DataKey 설치
+- [ ] `ControlClient` 상태머신(순수, I/O 없음): hard reset → TLS → key-method 2 → PUSH_REPLY → 키 설치. 가짜 서버로 CI 검증 + 실제 서버로 상호운용
 - [ ] keepalive(ping), 재협상(key_id 회전)
 - [ ] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
