@@ -117,7 +117,7 @@
 - [ ] PM-3 성능 최적화
 - [ ] PM-4 DSL / Compiler / IR
 - [ ] PM-5 TAP / L2 Block
-- [ ] PM-6 GUI Flow Editor — **n8n 코드는 사용하지 않음(라이선스), UX만 참고**(D-022). MVP-C 직후 에디터 PoC, Validator를 WASM으로 공유하는 방식 검토
+- [ ] PM-6 GUI Flow Editor — **n8n 코드는 사용하지 않음(라이선스), UX만 참고**(D-022). MVP-C 직후 에디터 PoC, Validator를 WASM으로 공유하는 방식 검토. **보안 관리자·운영자도 편집**(D-023): 역할별 권한, 승인 워크플로, 감사 로그, 버전·서명을 PoC부터 포함
 - [ ] PM-7 MCP / AI 계층
 - [ ] PM-8 🔧 OpenVPN DCO / Kernel Runtime (오픈소스 수정 가능성)
 - [ ] PM-9 프로토콜 확장 (WireGuard / SDP / NAC)

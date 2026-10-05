@@ -26,7 +26,8 @@
 | D-019 | 2026-10-05 | **A1 설계 확정(Block API)**: `Drop`(입력 탓, 사유 필수)과 `Error`(우리 쪽 실패)를 분리, Action/Decision별 허용 결과를 러너가 강제(위반 시 `Errored/Internal`). `PacketBuffer`는 headroom/tailroom + move-only + 재할당 없음 + `wipe()`. Flow는 빌드 시 순환·미도달·누락 edge를 검증하고 handler를 미리 해석(직접 dispatch). 상세: `docs/Block_API.md` | 확정 |
 | D-020 | 2026-10-05 | **작업 추적 방식**: 저장소 루트 `progress.md`(`[ ]`/`[~]`/`[x]`/`[!]`)를 정본으로 하고 클라우드·로컬·사람·Claude가 공유. 작업 상태 변경은 해당 커밋에서 같이 갱신. 세션 내 작업 목록은 보조 | 확정 |
 | D-021 | 2026-10-05 | **A2 Data Plane 설계 확정**: replay window는 인증 성공 후에만 갱신(check/commit 분리), 인증 실패 시 평문을 0으로 지움, TX nonce 고갈 시 래핑 대신 `NonceExhausted`로 중단, 키는 `KeyStore`의 `KeyRef`로만 접근. 암호는 `AeadProvider` 인터페이스 + OpenSSL 구현(`PF_WITH_OPENSSL=AUTO/ON/OFF`로 게이팅). Windows CI는 PM-1까지 OpenSSL OFF. 상세: `docs/Block_API.md` §8 | 확정 |
-| D-022 | 2026-10-05 | **웹 Flow 에디터 방향**: 에디터는 제품의 핵심 포인트(계획서 §50). **n8n 코드/에셋은 사용하지 않는다** — Sustainable Use License(fair-code, 사내·비영리 목적에 한정, 상용 재배포 불가)가 판매·배포 제품과 충돌. n8n은 UX 아이디어(노드 팔레트, 자격증명 분리≈Key Reference, 노드별 테스트≈패킷 시뮬레이션, JSON 내보내기)만 참고. 캔버스는 MIT 계열(Rete.js/React Flow 등, 사용 전 LICENSE 확인). C++ Validator를 WASM으로 컴파일해 에디터와 런타임이 같은 검증을 쓰는 방안을 검토. **MVP-C 직후 에디터 PoC**를 앞당김. 에디터는 보안 정책 편집이므로 권한/승인/버전·서명을 PoC부터 고려 | 확정(방향) / 사용자 범위 미결 |
+| D-022 | 2026-10-05 | **웹 Flow 에디터 방향**: 에디터는 제품의 핵심 포인트(계획서 §50). **n8n 코드/에셋은 사용하지 않는다** — Sustainable Use License(fair-code, 사내·비영리 목적에 한정, 상용 재배포 불가)가 판매·배포 제품과 충돌. n8n은 UX 아이디어(노드 팔레트, 자격증명 분리≈Key Reference, 노드별 테스트≈패킷 시뮬레이션, JSON 내보내기)만 참고. 캔버스는 MIT 계열(Rete.js/React Flow 등, 사용 전 LICENSE 확인). C++ Validator를 WASM으로 컴파일해 에디터와 런타임이 같은 검증을 쓰는 방안을 검토. **MVP-C 직후 에디터 PoC**를 앞당김. 에디터는 보안 정책 편집이므로 권한/승인/버전·서명을 PoC부터 고려 | 확정 (사용자 범위는 D-023) |
+| D-023 | 2026-10-05 | **에디터 사용자 범위 확정**: 프로토콜 개발자뿐 아니라 **보안 관리자·운영자도 정책(Flow)을 편집**한다. 따라서 에디터 PoC부터 (1) 역할별 권한(보기/편집/검증/승인/배포 분리), (2) 변경 승인 워크플로(작성자≠승인자), (3) 감사 로그, (4) Flow 버전 관리와 서명, (5) 비개발자용 안전장치(위험한 Block 편집 제한, 검증 통과 전 배포 불가)를 요구사항에 포함한다. MCP 계획의 권한 모델(§17~§20)과 연계. 키 값은 어떤 역할에도 노출하지 않고 Key Reference만 다룬다 | 확정 |
 
 ## 미결정 사항 (Open Questions)
 
@@ -38,7 +39,7 @@
 6. 남은 `[검증]`: TLS exporter 컨텍스트/내보내는 바이트 수/방향별 키·nonce tail 분할 → A3 핸드셰이크 상호운용 테스트로 확정 (라벨, AEAD nonce/AAD, IV_PROTO 비트는 D-017/D-018로 확정)
 7. 성능 목표 수치 (MVP-A 기준선 측정 후), iOS 메모리 상한
 8. ~~오류 모델 / 버퍼 모델~~ → D-019 확정
-9. 에디터 사용자 범위: 프로토콜 개발자만 vs 보안 관리자/운영자 포함(권한·승인 설계 시점에 영향)
+9. ~~에디터 사용자 범위~~ → D-023 확정 (역할 목록·승인 단계 세부는 PM-6 진입 시 설계)
 10. MSVC `/WX` 적용 시점 (현재 CI에서 `/W4`만, 검증 후 결정)
 
 ## 현재 진행 상황

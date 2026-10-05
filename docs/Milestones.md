@@ -82,7 +82,7 @@ M0 하드닝 ✅
 | PM-3 | 성능 최적화 | zero-copy, batching, lock 최소화, per-CPU. 기준선 대비 목표 수치 확정 후 진행 | MVP-A 기준선 | | OpenVPN §19 Phase 6, §21 |
 | PM-4 | DSL / Compiler / IR | Flow JSON 위 텍스트 DSL, IR, 최적화. Control Plane 표현 방식(루프/타이머) 결정 포함 | MVP-C | | OpenVPN §7~9, §19 Phase 5 |
 | PM-5 | TAP / L2 | ETH_PARSE, ARP, BROADCAST_FILTER, MAC learning, Validator의 L2 규칙 | MVP-A | | MultiPlatform §6 |
-| PM-6 | GUI Flow Editor | **MVP-C 직후 에디터 PoC**(OpenVPN RX Flow JSON 표시 + 실시간 검증 오류) → Production. 캔버스는 MIT 계열 라이브러리, n8n 코드 미사용(D-022). Validator WASM 공유 검토 | MVP-C | | OpenVPN §18, §27~, §49, D-022 |
+| PM-6 | GUI Flow Editor | **MVP-C 직후 에디터 PoC**(OpenVPN RX Flow JSON 표시 + 실시간 검증 오류) → Production. 캔버스는 MIT 계열 라이브러리, n8n 코드 미사용(D-022). Validator WASM 공유 검토. 사용자에 보안 관리자·운영자 포함 → 권한/승인/감사/버전·서명 요구(D-023) | MVP-C | | OpenVPN §18, §27~, §49, D-022 |
 | PM-7 | MCP / AI 계층 | MCP Server, 권한 모델, 승인/감사 로그. 자연어 → Flow → 검증 → User Runtime 배포까지(DCO 제외) | MVP-C + PM-6 설계 | | MCP 계획 전체 |
 | PM-8 | 🔧 OpenVPN DCO / Kernel Runtime | DCO Adapter, Kernel Runtime(Linux/Windows), Shared Memory Crypto. **먼저 Adapter/IPC로 수정 없이 가능한지 조사**, 불가 시 패치는 upstream 제안 우선 | MVP-A + 경계 조사 | 🔧 | OpenVPN §13~15, §45 |
 | PM-9 | 프로토콜 확장 | WireGuard, SDP, NAC, N2SF | MVP-C | | OpenVPN §23 |
