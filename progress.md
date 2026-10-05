@@ -71,7 +71,7 @@
 - [x] DATA_V2 RX/TX Flow 통합 (가짜 Provider로 로직 검증 + 실제 OpenVPN 패킷으로 전체 Flow 검증)
 - [x] 키 재료 `wipe` 검증 (`DataKey`, `secure_zero`, 인증 실패 시 평문 0 처리), TX nonce 고갈 정책
 - [x] 변이 테스트로 nonce·AAD·wipe·window 크기 오류가 테스트에 잡히는지 확인
-- [~] CI: OpenSSL 게이팅(ubuntu/macOS ON, Windows OFF), `fuzz_data_v2` 타깃 — 푸시 후 CI 확인 필요
+- [x] CI: OpenSSL 게이팅(ubuntu/macOS ON, Windows OFF), `fuzz_data_v2` 타깃 — 5개 잡 모두 통과 확인 (run 14)
 
 ### A3 — Control Plane (일반 코드, Flow 아님: D-009)
 
@@ -117,7 +117,7 @@
 - [ ] PM-3 성능 최적화
 - [ ] PM-4 DSL / Compiler / IR
 - [ ] PM-5 TAP / L2 Block
-- [ ] PM-6 GUI Flow Editor
+- [ ] PM-6 GUI Flow Editor — **n8n 코드는 사용하지 않음(라이선스), UX만 참고**(D-022). MVP-C 직후 에디터 PoC, Validator를 WASM으로 공유하는 방식 검토
 - [ ] PM-7 MCP / AI 계층
 - [ ] PM-8 🔧 OpenVPN DCO / Kernel Runtime (오픈소스 수정 가능성)
 - [ ] PM-9 프로토콜 확장 (WireGuard / SDP / NAC)
