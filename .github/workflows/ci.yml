@@ -59,9 +59,8 @@ jobs:
 
   interop:
     # Our client against an UNMODIFIED OpenVPN 2.6 server (network namespace, needs sudo).
-    # Non-blocking until it has run on GitHub-hosted runners.
+    # Blocking: verified on GitHub-hosted runners (3 scenarios, ~50 s).
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libssl-dev openvpn tcpdump iproute2 openssl

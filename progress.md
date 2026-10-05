@@ -89,7 +89,7 @@
 - [x] **실제 서버로 상호운용** (`tools/pf_connect`, UDP): 수정 없는 OpenVPN 2.6.19와 핸드셰이크(~10ms) 성공, key-method 2 수락, 서버 응답의 선택 필드 3개 확인(계측으로 발견·수정)
 - [x] **EKM 키 분할 확정** (D-026): 모든 오프셋 탐색에서 GCM 태그 검증되는 조합이 유일, tx는 서버가 핑을 수락
 - [x] **데이터 채널 양방향 keepalive** 실제 서버와 교환 (우리 TX/RX 블록 사용: 송신 핑을 서버가 복호, 서버 핑을 우리가 replay 검사→복호)
-- [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡. 키 분할을 틀리게 바꾸면 실패함을 확인
+- [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡(GH 러너 3시나리오 통과, 차단 잡으로 전환). 키 분할을 틀리게 바꾸면 실패함을 확인
 - [x] **재협상(SOFT_RESET, key_id 회전)**: key_id별 key state, 서버·클라이언트 시작 모두, TX 전환, 이전 키 수신 유예(최대 1개), 실패 시 이전 키 유지. 가짜 서버 11개 시나리오 + 변이 11개 모두 검출. **실제 서버: 26초 동안 12회 재협상, key_id 7→1 순환 확인, 데이터 12/12 정상**
 - [x] keepalive 스케줄링(`KeepaliveTimer`: ping / ping-restart)을 코어로. 변이 검출 확인
 - [x] 상호운용 테스트 3 시나리오(`baseline`, `server-reneg`, `client-reneg`), 재협상/키 전환을 깨뜨리는 변이를 모두 검출
