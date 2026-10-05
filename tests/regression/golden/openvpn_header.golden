@@ -1,0 +1,9 @@
+# hex_packet | expected_status | opcode | key_id | peer_id
+# Golden vectors: once a line is added, its expected result must never change
+# without an explicit, reviewed reason (regression guard).
+38        | Ok        | 7  | 0 | 0
+20        | Ok        | 4  | 0 | 0
+21        | Ok        | 4  | 1 | 0
+49010203  | Ok        | 9  | 1 | 66051
+49        | Truncated | 0  | 0 | 0
+F8        | InvalidOpcode | 0 | 0 | 0
