@@ -47,6 +47,7 @@ cmake -S . -B build-san -DPF_WARNINGS_AS_ERRORS=ON -DPF_SANITIZE=address,undefin
 apt-get install -y openvpn tcpdump iproute2 iputils-ping     # OpenVPN 2.6.x
 tools/interop/lab.sh build/interop-lab 16   # 수정 없는 서버/클라이언트 실행 + pcap/로그
 ```
+`tools/interop/verify_aead.py build/interop-lab`로 데이터 채널 AEAD 레이아웃을 독립 검증한다(`pip install cryptography`).
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 
 ## 코드 규칙

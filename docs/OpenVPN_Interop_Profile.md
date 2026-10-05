@@ -3,7 +3,9 @@
 D-008. MVP가 "수정 없는 OpenVPN과 wire 호환"이라는 것은 **아래 프로파일 범위에 한정**된다.
 > ⚠ 이 문서는 **초안**이다. 표기:
 > - **[관측]** = 수정 없는 OpenVPN 2.6.19(Ubuntu 24.04 패키지)를 `tools/interop/lab.sh`로 실행해 로그/pcap에서 직접 확인한 사실 (2026-10-05). 관측 환경에서만 보증한다.
-> - **[검증]** = 아직 공식 문서·pcap으로 확인하지 못한 항목. 구현 전에 확인한다. 확인 전에는 사실로 취급하지 않는다.
+> - **[문서]** = OpenVPN 공식 문서/공식 doxygen/공식 개발 메일링 리스트 패치 설명에서 확인한 사실 (출처는 §6).
+> - **[관측·검증됨]** = 위 [관측] 중, 독립 도구(`tools/interop/verify_aead.py`)로 **AEAD 태그 검증까지 통과**시켜 확인한 사실.
+> - **[검증]** = 아직 확인하지 못한 항목. 구현 전/해당 단계의 상호운용 테스트에서 확인한다. 확인 전에는 사실로 취급하지 않는다.
 
 ## 1. 상대(Peer)
 
@@ -22,16 +24,35 @@ D-008. MVP가 "수정 없는 OpenVPN과 wire 호환"이라는 것은 **아래 �
 | Opcode | 3(SOFT_RESET), 4(CONTROL_V1), 5(ACK_V1), 7(HARD_RESET_CLIENT_V2), 8(HARD_RESET_SERVER_V2), 9(DATA_V2). **[관측]** 연결+재협상+데이터 구간 pcap에서 정확히 이 6개만 등장 |
 | 제어 채널 보호 | **tls-crypt** (tls-auth는 제외) |
 | TLS | TLS 1.3, 인증서 기반 인증 (메모리 BIO 방식으로 TLS 라이브러리 사용). **[관측]** `TLSv1.3 TLS_AES_256_GCM_SHA384`, X25519, EC P-256 인증서(ECDSA-SHA256) |
-| 키 유도 | TLS Keying Material Exporter(**tls-ekm**). **[관측]** 스톡 클라이언트가 `IV_PROTO=990`을 보내면 서버가 PUSH_REPLY에 `protocol-flags cc-exit tls-ekm dyn-tls-crypt`를 보낸다. exporter 라벨/컨텍스트/키 분할 세부 `[검증]`. key-method 2 PRF 폴백은 필요 시 검토 |
-| 데이터 채널 | AES-256-GCM, DATA_V2, peer-id. **[관측]** PUSH_REPLY에 `peer-id 0`, `cipher AES-256-GCM`. DATA_V2 헤더 4바이트 = opcode/key_id(1) + peer-id(3). 패킷 길이가 keepalive 40B, ICMP echo 108B로 `헤더4 + packet-id 4 + 태그 16 + 암호문` 레이아웃과 일치. AAD 구성·nonce(packet-id + implicit IV 등) 세부는 `[검증]` |
+| 키 유도 | TLS Keying Material Exporter(RFC 5705, **tls-ekm**). **[문서]** 클라이언트가 `IV_PROTO_TLS_KEY_EXPORT`를 보내고 서버가 `key-derivation tls-ekm`로 응답하면 exporter 라벨 `EXPORTER-OpenVPN-datakeys`로 키 데이터를 만든다. **[관측]** 스톡 클라이언트(`IV_PROTO=990`)에게 서버가 PUSH_REPLY에 `protocol-flags cc-exit tls-ekm dyn-tls-crypt`를 보낸다. **[검증]** exporter 컨텍스트 값, 내보내는 바이트 수(기존 key2 구조 256바이트를 채운다고 알려짐), 방향별 cipher/implicit-IV 분할 → **MVP-A A3 핸드셰이크 상호운용 테스트**로 확정(틀리면 데이터 복호화가 실패하므로 테스트가 곧 증명). 랩에서 복원한 nonce tail(§2.3)을 기대값으로 쓸 수 있음. key-method 2 PRF 폴백은 필요 시 검토 |
+| 데이터 채널 | AES-256-GCM, DATA_V2, peer-id. **[관측·검증됨]** 와이어 레이아웃 = `헤더 4B(opcode/key_id 1 + peer-id 3) ‖ packet-id 4B ‖ GCM 태그 16B ‖ 암호문` (태그가 암호문 **앞**). **nonce(12B) = 와이어의 packet-id(4B) ‖ 방향·키별 고정 tail 8B**(연결 방식). **AAD = 헤더 4B ‖ packet-id 4B (8B)**. §2.3 참고 |
 | Reliability | 제어 채널 packet-id, ACK 배열, 재전송, 세션 ID. **[관측]** 핸드셰이크에서 CONTROL_V1과 ACK_V1이 교차 |
 | 옵션 | PUSH_REQUEST/PUSH_REPLY 파싱: `ifconfig`, `route`, `peer-id`, `cipher`, `keepalive` 등 필요한 최소 집합 |
 | 유지 | keepalive(ping), key_id 회전을 통한 **재협상(renegotiation)**. **[관측]** `--reneg-sec 6` 환경에서 SOFT_RESET(opcode 3) 후 key_id가 0→1→2로 증가, 데이터 채널도 해당 key_id 사용 |
 | NCP | 암호 협상은 AES-256-GCM만 선택하도록 제한 |
 
+### 2.3 AEAD 레이아웃 검증 결과 (2026-10-05, OpenVPN 2.6.19)
+
+`tools/interop/verify_aead.py`는 랩 로그의 테스트 세션 키와 pcap만 사용한다(OpenVPN 소스 미사용). keepalive 패킷의 평문은 고정 16바이트 패턴이므로 `키스트림 = 암호문 ⊕ 평문`을 AES로 역변환하면 GCM 카운터 블록(`nonce ‖ 00000002`)이 복원된다.
+
+| 확인 항목 | 결과 |
+|---|---|
+| 복원한 카운터 블록의 마지막 4B가 `00000002` | 7/7 (복원 로직의 자체 검증) |
+| `nonce[0:4] == 와이어 packet-id` | 7/7 |
+| `nonce[4:12]`가 (방향, key_id)별로 상수 | 4개 조합 모두 distinct 값 1개 |
+| AAD = `헤더4 ‖ packet-id4`로 GCM 복호화(태그 검증 통과) | 7/7 성공 |
+| AAD = `packet-id만` / `헤더만` / 없음 | 모두 태그 검증 실패 |
+
+주의: 이 결과는 **2.6.19, 32비트 packet-id 모드** 기준이다. 이후 버전(예: 2.7)에서는 implicit IV를 XOR로 결합하는 방식이 논의/도입되었다는 정보가 있으나(개발 패치 제목 기준, 미검증) 2.6과 다를 수 있으므로 **지원 버전을 2.6.x로 한정**한다.
+tail 8B가 키 재료의 어느 구간에서 오는지는 `[검증]`(A3).
+
 ### 2.1 [관측]된 협상 부가 기능 처리 방침
 
-스톡 클라이언트와 서버는 `cc-exit`(명시적 종료 알림), `dyn-tls-crypt`(핸드셰이크 후 제어 채널 키 전환)를 협상했다. 우리 클라이언트는 **IV_PROTO에서 이 기능들을 광고하지 않는 것**을 기본으로 한다(서버가 push하지 않음). 각 IV_PROTO 비트 의미는 `[검증]`. 필요해지면 PM-10에서 추가한다.
+스톡 클라이언트와 서버는 `cc-exit`(명시적 종료 알림), `dyn-tls-crypt`(핸드셰이크 후 제어 채널 키 전환)를 협상했다. 우리 클라이언트는 **IV_PROTO에서 이 기능들을 광고하지 않는 것**을 기본으로 한다(서버가 push하지 않음). 필요해지면 PM-10에서 추가한다.
+
+**IV_PROTO 비트 [문서]**: 비트 0 예약. 비트 1 `DATA_V2`(P_DATA_V2 지원), 비트 2 `REQUEST_PUSH`(클라이언트가 push-request를 보낼 것이므로 서버가 기다리지 않고 push-reply 전송), 비트 3 `TLS_KEY_EXPORT`(RFC 5705 키 유도), 비트 7 `CC_EXIT_NOTIFY`, 비트 9 `DYN_TLS_CRYPT`. 어떤 플래그든 광고하는 클라이언트는 `DATA_V2`도 광고해야 한다.
+**관측 대응**: 스톡 클라이언트 `IV_PROTO=990`(비트 1,2,3,4,6,7,8,9)에서 문서화된 비트 3/7/9가 서버의 `tls-ekm`/`cc-exit`/`dyn-tls-crypt` push와 일치한다. 비트 4/6/8의 의미는 확인하지 못했다(`[검증]`, MVP에는 불필요).
+**MVP 클라이언트 값(제안)**: `DATA_V2 | REQUEST_PUSH | TLS_KEY_EXPORT` = 2+4+8 = **14**. 서버가 이에 맞게 응답하는지는 A3 상호운용 테스트에서 확인한다.
 
 ### 2.2 [관측] 기타 값
 
@@ -68,3 +89,10 @@ D-008. MVP가 "수정 없는 OpenVPN과 wire 호환"이라는 것은 **아래 �
 - 구현 근거는 **공개된 프로토콜 문서, RFC, pcap 관찰 결과**로 한정한다.
 - OpenVPN 소스 코드를 보고 옮겨 적는 방식으로 구현하지 않는다. 확인이 필요하면 동작을 pcap/문서로 검증한다.
 - 이 원칙의 이유와 라이선스 고려는 `docs/Threat_Model_and_Key_Management.md` §6 참고. (법률 자문이 아님)
+
+## 6. 근거 자료 (공식)
+
+- OpenVPN 키 생성 문서(doxygen `doc_key_generation.h`, release/2.6): EKM 라벨·협상 조건 — https://raw.githubusercontent.com/OpenVPN/openvpn/release/2.6/doc/doxygen/doc_key_generation.h
+- OpenVPN doxygen `ssl.h`: IV_PROTO 비트 정의 — https://build.openvpn.net/doxygen/ssl_8h.html
+- 개발 메일링 리스트 패치 설명(EKM 도입, IV_PROTO 비트화, implicit IV XOR 논의): patchwork.openvpn.net (이 개발 환경에서는 접근 차단되어 검색 결과 요약만 확인)
+- 실측: `tools/interop/lab.sh`, `tools/interop/verify_aead.py`

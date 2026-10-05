@@ -21,6 +21,8 @@
 | D-014 | 2026-10-05 | **TLS/암호 라이브러리: OpenSSL 3.x** (MVP-A, Linux). 수정 없이 링크, Provider 인터페이스 뒤에 둠. 모바일 라이브러리는 PM-1에서 별도 결정. 개발 환경 OpenSSL 3.0.13 확인 | 확정 |
 | D-015 | 2026-10-05 | **상호운용 상대 환경**: 수정 없는 OpenVPN **2.6.19**(Ubuntu 24.04 패키지), `tools/interop/lab.sh`(netns+veth)로 pcap/로그 수집. 컨테이너에서 TUN/netns/veth 사용 가능 확인. 일부 `[검증]` 항목을 `[관측]`으로 확정(opcode 집합, key_id 회전, peer-id, tls-ekm 협상 등) | 확정 |
 | D-016 | 2026-10-05 | CI 첫 실행 결과 확인: 5개 잡(ubuntu/windows/macos, sanitizers, fuzz-smoke) 모두 성공 → **fuzz-smoke를 blocking으로 전환** | 확정 |
+| D-017 | 2026-10-05 | **데이터 채널 AEAD 레이아웃 확정(2.6.19, 32비트 packet-id)**: nonce = packet-id(4B) ‖ 방향·키별 tail 8B, AAD = 헤더4B ‖ packet-id4B, 태그가 암호문 앞. 독립 도구로 GCM 태그 검증까지 통과. 지원 버전은 **2.6.x로 한정**(2.7 등은 XOR 방식 논의가 있어 별도 검증 전까지 비지원) | 확정 |
+| D-018 | 2026-10-05 | **IV_PROTO**: MVP 클라이언트는 `DATA_V2 \| REQUEST_PUSH \| TLS_KEY_EXPORT`(=14)만 광고하고 `cc-exit`/`dyn-tls-crypt`는 광고하지 않음. EKM 라벨 `EXPORTER-OpenVPN-datakeys`(공식 문서) | 확정(서버 응답은 A3에서 확인) |
 
 ## 미결정 사항 (Open Questions)
 
@@ -29,7 +31,7 @@
 3. 모바일 TLS/암호 라이브러리 (BoringSSL 등) (PM-1) — 데스크톱 MVP는 OpenSSL 3.x(D-014)
 4. 플랫폼 지원 순서 (제안: Linux → Windows → Android → macOS → iOS)
 5. OpenVPN 연동 경계 조사: management interface vs DCO 경계 (PM-8)
-6. `docs/OpenVPN_Interop_Profile.md`의 남은 `[검증]` 항목: TLS exporter 라벨/키 분할, AEAD nonce/AAD 구성, IV_PROTO 비트 의미
+6. 남은 `[검증]`: TLS exporter 컨텍스트/내보내는 바이트 수/방향별 키·nonce tail 분할 → A3 핸드셰이크 상호운용 테스트로 확정 (라벨, AEAD nonce/AAD, IV_PROTO 비트는 D-017/D-018로 확정)
 7. 성능 목표 수치 (MVP-A 기준선 측정 후), iOS 메모리 상한
 8. 오류 모델 / 버퍼 모델 (MVP-A의 A1에서 TDD로 확정)
 9. MSVC `/WX` 적용 시점 (현재 CI에서 `/W4`만, 검증 후 결정)
@@ -38,4 +40,5 @@
 
 - 완료: 참고자료 정리, TDD 스캐폴드, M0 하드닝(파서·device·fallback·하니스·CMake·CI), 마일스톤/프로파일/위협모델 문서, 계획서 정합화
 - 완료(추가): 언어/TLS 라이브러리 확정, 상호운용 랩(`tools/interop/lab.sh`) 구축 및 pcap 관측, CI 5개 잡 통과 확인
-- 다음: (1) 남은 `[검증]` 항목 확정(exporter, nonce/AAD) → (2) MVP-A A1 Block API/오류·버퍼 모델을 테스트부터 작성
+- 완료(추가): 데이터 채널 nonce/AAD·IV_PROTO 확정(D-017/D-018)
+- 다음: MVP-A A1 Block API/오류·버퍼 모델을 테스트부터 작성 (exporter 세부는 A3에서 확정)
