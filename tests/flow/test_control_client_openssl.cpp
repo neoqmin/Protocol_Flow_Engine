@@ -3,96 +3,12 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "pf/control_client.h"
-#include "pf_test.h"
-#include "fake_ovpn_server.h"
-#include "test_pki.h"
+#include "control_rig.h"
 
 using namespace pf;
+using namespace pf_test;
 
-namespace {
 
-const pf_test::TestPki& pki() { static pf_test::TestPki p = pf_test::make_test_pki(); return p; }
-
-std::array<uint8_t, kTlsCryptStaticKeyLen> key(uint8_t seed) {
-    std::array<uint8_t, kTlsCryptStaticKeyLen> k{};
-    for (size_t i = 0; i < k.size(); ++i) k[i] = static_cast<uint8_t>(seed * 7 + i * 13 + (i >> 3));
-    return k;
-}
-
-ControlClientConfig client_cfg(KeyStore* ks, uint8_t seed = 1) {
-    ControlClientConfig c;
-    c.tls_crypt_key = key(seed);
-    c.tls.role = TlsRole::Client;
-    c.tls.ca_pem = pki().ca_pem; c.tls.cert_pem = pki().client_cert_pem; c.tls.key_pem = pki().client_key_pem;
-    c.keys = ks;
-    uint8_t ctr = 0;
-    c.random = [ctr](uint8_t* p, size_t n) mutable { for (size_t i = 0; i < n; ++i) p[i] = static_cast<uint8_t>(++ctr * 29 + 3); };
-    return c;
-}
-
-pf_test::FakeServerConfig server_cfg(uint8_t seed = 1) {
-    pf_test::FakeServerConfig s;
-    s.static_key = key(seed);
-    s.tls.role = TlsRole::Server;
-    s.tls.ca_pem = pki().ca_pem; s.tls.cert_pem = pki().server_cert_pem; s.tls.key_pem = pki().server_key_pem;
-    return s;
-}
-
-// Connects the two sans-I/O peers with an in-memory "network" that can drop/duplicate/reorder datagrams.
-struct Net {
-    ControlClient& c;
-    pf_test::FakeServer& s;
-    uint64_t now = 1000;
-    uint32_t unix_s = 1790000000;
-    std::function<int(bool to_server, size_t index)> fate = [](bool, size_t) { return 1; };   // copies delivered: 0 drop, 2 duplicate
-    size_t to_server_idx = 0, to_client_idx = 0;
-    size_t sent_by_client = 0, sent_by_server = 0;
-    bool reverse_server_flights = false;
-
-    void deliver_to_server(const std::vector<std::vector<uint8_t>>& dgs) {
-        for (auto& d : dgs) {
-            ++sent_by_client;
-            const int copies = fate(true, to_server_idx++);
-            for (int i = 0; i < copies; ++i) {
-                auto back = s.on_datagram(d.data(), d.size(), now, unix_s);
-                deliver_to_client(back);
-            }
-        }
-    }
-    void deliver_to_client(std::vector<std::vector<uint8_t>> dgs) {
-        if (reverse_server_flights) std::reverse(dgs.begin(), dgs.end());
-        for (auto& d : dgs) {
-            ++sent_by_server;
-            const int copies = fate(false, to_client_idx++);
-            for (int i = 0; i < copies; ++i) c.on_datagram(d.data(), d.size(), now, unix_s);
-        }
-    }
-    void run(uint64_t duration_ms, uint64_t step_ms = 100) {
-        const uint64_t end = now + duration_ms;
-        while (now < end) {
-            deliver_to_server(c.poll(now, unix_s));
-            deliver_to_client(s.poll(now, unix_s));
-            now += step_ms;
-        }
-    }
-};
-
-struct Rig {
-    KeyStore keys;
-    std::unique_ptr<ControlClient> client;
-    std::unique_ptr<pf_test::FakeServer> server;
-    Rig(ControlClientConfig cc, pf_test::FakeServerConfig sc) {
-        cc.keys = &keys;
-        std::string err;
-        client = ControlClient::create(std::move(cc), err);
-        PF_REQUIRE(client != nullptr);
-        server = std::make_unique<pf_test::FakeServer>(std::move(sc));
-    }
-    Rig() : Rig(client_cfg(nullptr), server_cfg()) {}
-};
-
-}  // namespace
 
 PF_TEST(client_completes_handshake_and_installs_matching_data_keys) {
     Rig r; Net n{*r.client, *r.server};
@@ -178,7 +94,7 @@ PF_TEST(client_with_wrong_tls_crypt_key_never_connects_and_gives_up) {
 }
 
 PF_TEST(client_rejects_a_server_with_an_untrusted_certificate) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.tls.cert_pem = pki().other_server_cert_pem; sc.tls.key_pem = pki().other_server_key_pem;
     Rig r(client_cfg(nullptr), sc); Net n{*r.client, *r.server};
     r.client->start(n.now, n.unix_s);
@@ -188,7 +104,7 @@ PF_TEST(client_rejects_a_server_with_an_untrusted_certificate) {
 }
 
 PF_TEST(client_fails_on_unsupported_push_and_installs_no_keys) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.push_reply = "PUSH_REPLY,ifconfig 10.77.0.2 255.255.255.0,peer-id 7,cipher AES-128-GCM,protocol-flags tls-ekm";
     Rig r(client_cfg(nullptr), sc); Net n{*r.client, *r.server};
     r.client->start(n.now, n.unix_s);
@@ -200,7 +116,7 @@ PF_TEST(client_fails_on_unsupported_push_and_installs_no_keys) {
 }
 
 PF_TEST(client_fails_on_auth_failed_message) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.send_instead_of_push = "AUTH_FAILED,denied";
     Rig r(client_cfg(nullptr), sc); Net n{*r.client, *r.server};
     r.client->start(n.now, n.unix_s);
@@ -210,7 +126,7 @@ PF_TEST(client_fails_on_auth_failed_message) {
 }
 
 PF_TEST(client_asks_for_the_push_when_the_server_does_not_volunteer_it) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.push_without_request = false;                               // server waits for PUSH_REQUEST
     Rig r(client_cfg(nullptr), sc); Net n{*r.client, *r.server};
     r.client->start(n.now, n.unix_s);
@@ -223,7 +139,7 @@ PF_TEST(client_asks_for_the_push_when_the_server_does_not_volunteer_it) {
 }
 
 PF_TEST(client_without_any_push_reply_times_out_in_wait_push) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.send_push = false;
     ControlClientConfig cc = client_cfg(nullptr); cc.push_timeout_ms = 8000;
     Rig r(cc, sc); Net n{*r.client, *r.server};
@@ -319,7 +235,7 @@ PF_TEST(client_ignores_acks_that_name_a_different_client_session) {
 }
 
 PF_TEST(client_fails_when_the_server_sends_an_invalid_key_method_message) {
-    pf_test::FakeServerConfig sc = server_cfg();
+    FakeServerConfig sc = server_cfg();
     sc.corrupt_key_method = true;
     Rig r(client_cfg(nullptr), sc); Net n{*r.client, *r.server};
     r.client->start(n.now, n.unix_s);
