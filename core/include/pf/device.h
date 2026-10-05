@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 
 namespace pf {
 
@@ -18,11 +19,12 @@ constexpr bool device_resolvable(Platform p, DeviceMode requested, bool allow_fa
     return device_supported(p, requested) || (allow_fallback && device_supported(p, DeviceMode::Tun));
 }
 
-// Returns the mode to actually use. Caller must check device_resolvable() first
-// when allow_fallback is false; an unsupported request is returned unchanged.
-constexpr DeviceMode resolve_device(Platform p, DeviceMode requested, bool allow_fallback) {
+// Mode to actually use, or nullopt when the request cannot be satisfied
+// (unsupported and fallback not allowed). Never silently returns an unusable mode.
+constexpr std::optional<DeviceMode> resolve_device(Platform p, DeviceMode requested, bool allow_fallback) {
     if (device_supported(p, requested)) return requested;
-    return allow_fallback ? DeviceMode::Tun : requested;
+    if (allow_fallback) return DeviceMode::Tun;
+    return std::nullopt;
 }
 
 }  // namespace pf

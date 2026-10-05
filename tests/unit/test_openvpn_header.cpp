@@ -42,3 +42,59 @@ PF_TEST(header_unknown_opcode_rejected) {
     OvpnHeader h{};
     PF_CHECK(parse_ovpn_header(pkt, sizeof pkt, h) == ParseStatus::InvalidOpcode);
 }
+
+PF_TEST(header_wkc_v1_opcode_11_accepted) {  // tls-crypt-v2 client key wrapping
+    const uint8_t pkt[] = {static_cast<uint8_t>(11 << 3)};
+    OvpnHeader h{};
+    PF_CHECK(parse_ovpn_header(pkt, sizeof pkt, h) == ParseStatus::Ok);
+    PF_CHECK(h.opcode == OvpnOpcode::ControlWkcV1);
+}
+
+PF_TEST(header_opcode_12_rejected) {
+    const uint8_t pkt[] = {static_cast<uint8_t>(12 << 3)};
+    OvpnHeader h{};
+    PF_CHECK(parse_ovpn_header(pkt, sizeof pkt, h) == ParseStatus::InvalidOpcode);
+}
+
+PF_TEST(header_opcode_0_rejected) {
+    const uint8_t pkt[] = {0x00};
+    OvpnHeader h{};
+    PF_CHECK(parse_ovpn_header(pkt, sizeof pkt, h) == ParseStatus::InvalidOpcode);
+}
+
+PF_TEST(legacy_opcodes_flagged_for_policy) {
+    // Parser is wire-level; rejecting legacy opcodes is a policy decision.
+    PF_CHECK(is_legacy_opcode(OvpnOpcode::ControlHardResetClientV1));
+    PF_CHECK(is_legacy_opcode(OvpnOpcode::ControlHardResetServerV1));
+    PF_CHECK(is_legacy_opcode(OvpnOpcode::DataV1));
+    PF_CHECK(!is_legacy_opcode(OvpnOpcode::DataV2));
+    PF_CHECK(!is_legacy_opcode(OvpnOpcode::ControlHardResetClientV2));
+    PF_CHECK(!is_legacy_opcode(OvpnOpcode::ControlV1));
+}
+
+PF_TEST(header_ignores_trailing_payload) {
+    const uint8_t pkt[] = {0x38, 0xAA, 0xBB, 0xCC, 0xDD};
+    OvpnHeader h{};
+    PF_CHECK(parse_ovpn_header(pkt, sizeof pkt, h) == ParseStatus::Ok);
+    PF_CHECK(h.opcode == OvpnOpcode::ControlHardResetClientV2);
+}
+
+// Exhaustive robustness sweep (runs everywhere, incl. under ASan/UBSan):
+// every first byte x every length 0..5 must classify without UB, and the
+// result must agree with the documented rules.
+PF_TEST(header_exhaustive_small_inputs) {
+    uint8_t buf[5] = {0, 0xAB, 0xCD, 0xEF, 0x11};
+    for (int first = 0; first < 256; ++first) {
+        buf[0] = static_cast<uint8_t>(first);
+        for (size_t len = 0; len <= 5; ++len) {
+            OvpnHeader h{};
+            ParseStatus st = parse_ovpn_header(buf, len, h);
+            const int op = first >> 3;
+            if (len == 0) { PF_CHECK(st == ParseStatus::Truncated); continue; }
+            if (op < 1 || op > 11) { PF_CHECK(st == ParseStatus::InvalidOpcode); continue; }
+            if (op == 9 && len < 4) { PF_CHECK(st == ParseStatus::Truncated); continue; }
+            PF_CHECK(st == ParseStatus::Ok);
+            PF_CHECK_EQ(h.key_id, first & 7);
+        }
+    }
+}

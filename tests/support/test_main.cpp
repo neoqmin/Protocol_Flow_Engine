@@ -6,9 +6,19 @@ int main(int argc, char** argv) {
     for (auto& c : pf_test::registry()) {
         if (!filter.empty() && c.name.find(filter) == std::string::npos) continue;
         ++ran;
-        try { c.fn(); std::cout << "[ OK ] " << c.name << "\n"; }
-        catch (const pf_test::Failure& f) { ++failed; std::cout << "[FAIL] " << c.name << "\n       " << f.msg << "\n"; }
-        catch (const std::exception& e) { ++failed; std::cout << "[FAIL] " << c.name << "\n       exception: " << e.what() << "\n"; }
+        pf_test::failures().clear();
+        try { c.fn(); }
+        catch (const pf_test::Fatal&) {}
+        catch (const std::exception& e) { pf_test::failures().push_back(std::string("exception: ") + e.what()); }
+        catch (...) { pf_test::failures().push_back("unknown exception"); }
+
+        if (pf_test::failures().empty()) {
+            std::cout << "[ OK ] " << c.name << "\n";
+        } else {
+            ++failed;
+            std::cout << "[FAIL] " << c.name << "\n";
+            for (auto& f : pf_test::failures()) std::cout << "       " << f << "\n";
+        }
     }
     std::cout << ran - failed << "/" << ran << " passed\n";
     return failed ? 1 : 0;

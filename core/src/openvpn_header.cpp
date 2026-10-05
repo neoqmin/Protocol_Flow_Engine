@@ -3,10 +3,10 @@
 namespace pf {
 
 ParseStatus parse_ovpn_header(const uint8_t* data, size_t len, OvpnHeader& out) {
-    if (len < 1) return ParseStatus::Truncated;
+    if (data == nullptr || len < 1) return ParseStatus::Truncated;
 
     const uint8_t op = data[0] >> 3;
-    if (op < 1 || op > 10) return ParseStatus::InvalidOpcode;
+    if (op < 1 || op > 11) return ParseStatus::InvalidOpcode;
 
     out.opcode = static_cast<OvpnOpcode>(op);
     out.key_id = data[0] & 0x07;

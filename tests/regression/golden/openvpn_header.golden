@@ -7,3 +7,8 @@
 49010203  | Ok        | 9  | 1 | 66051
 49        | Truncated | 0  | 0 | 0
 F8        | InvalidOpcode | 0 | 0 | 0
+58        | Ok        | 11 | 0 | 0
+60        | InvalidOpcode | 0 | 0 | 0
+00        | InvalidOpcode | 0 | 0 | 0
+08        | Ok        | 1  | 0 | 0
+4800      | Truncated | 0  | 0 | 0

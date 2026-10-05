@@ -12,6 +12,36 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      # -Werror on GCC/Clang only; MSVC runs /W4 without /WX until verified.
+      - name: Configure
+        shell: bash
+        run: |
+          EXTRA=""
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then EXTRA="-DPF_WARNINGS_AS_ERRORS=ON"; fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release $EXTRA
       - run: cmake --build build --config Release
       - run: ctest --test-dir build -C Release --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DPF_WARNINGS_AS_ERRORS=ON -DPF_SANITIZE=address,undefined
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+  fuzz-smoke:
+    # Non-blocking until the libFuzzer toolchain on the runner is verified.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - run: cmake -S . -B build -DCMAKE_CXX_COMPILER=clang++ -DPF_BUILD_FUZZ=ON
+      - run: cmake --build build
+      - run: |
+          mkdir -p corpus
+          for f in build/tests/fuzz_*; do [ -x "$f" ] && "$f" -max_total_time=30 corpus; done

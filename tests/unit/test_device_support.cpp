@@ -23,11 +23,18 @@ PF_TEST(tap_carries_l2_tun_carries_l3) {
 }
 
 PF_TEST(resolve_falls_back_to_tun_when_tap_unsupported) {
-    PF_CHECK(resolve_device(Platform::IOS, DeviceMode::Tap, /*allow_fallback=*/true) == DeviceMode::Tun);
-    PF_CHECK(resolve_device(Platform::Linux, DeviceMode::Tap, true) == DeviceMode::Tap);
+    auto r = resolve_device(Platform::IOS, DeviceMode::Tap, /*allow_fallback=*/true);
+    PF_CHECK(r.has_value());
+    PF_CHECK(*r == DeviceMode::Tun);
 }
 
-PF_TEST(resolve_reports_unsupported_without_fallback) {
-    PF_CHECK(!device_resolvable(Platform::IOS, DeviceMode::Tap, /*allow_fallback=*/false));
-    PF_CHECK(device_resolvable(Platform::Linux, DeviceMode::Tap, false));
+PF_TEST(resolve_keeps_supported_request) {
+    auto r = resolve_device(Platform::Linux, DeviceMode::Tap, true);
+    PF_CHECK(r.has_value());
+    PF_CHECK(*r == DeviceMode::Tap);
+}
+
+PF_TEST(resolve_returns_nothing_for_unsupported_without_fallback) {
+    PF_CHECK(!resolve_device(Platform::IOS, DeviceMode::Tap, /*allow_fallback=*/false).has_value());
+    PF_CHECK(!resolve_device(Platform::MacOS, DeviceMode::Tap, false).has_value());
 }
