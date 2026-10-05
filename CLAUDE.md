@@ -10,6 +10,9 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 멀티 플랫폼·Transport: `plans/Protocol_Flow_Engine_MultiPlatform_Transport_Plan.md`
 - 오픈소스 정책: `docs/Upstream_Extension_Policy.md`
 - 참고 자료: `docs/References_OpenSource_Papers.md`
+- **마일스톤(MVP / Post-MVP)**: `docs/Milestones.md`
+- MVP 프로토콜 범위: `docs/OpenVPN_Interop_Profile.md`
+- 위협 모델·키 관리·라이선스(clean-room): `docs/Threat_Model_and_Key_Management.md`
 - **전체 결정 기록: `docs/DECISIONS.md`** (@docs/DECISIONS.md)
 
 ## 핵심 결정 (요약)
@@ -20,6 +23,9 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 오픈소스 원본 수정 금지, Adapter 경유, 패치는 최후 수단 (`third_party/`는 편집 금지)
 - **MVP에서는 오픈소스 수정이 필요한 작업 제외** (DCO Adapter, Kernel Runtime은 Post-MVP)
 - 언어는 C++17로 시작 (Rust 병행 여부 미결정)
+- MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
+- Control Plane은 MVP에서 일반 코드(Flow 아님). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
+- 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지
 
 ## 빌드 / 테스트
 
@@ -29,12 +35,17 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -L unit      # unit | flow | regression | protocol | performance
 ./build/tests/pf_unit_tests <이름필터>
+
+# 엄격 모드 (CI와 동일): 경고를 오류로 + ASan/UBSan
+cmake -S . -B build-san -DPF_WARNINGS_AS_ERRORS=ON -DPF_SANITIZE=address,undefined
+# 퍼저 (Clang + libFuzzer 런타임 필요): -DPF_BUILD_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++
 ```
 
 ## 코드 규칙
 
 - 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`), `tests/`, `adapters/`, `third_party/`, `patches/`
-- `tests/unit|flow|regression/test_*.cpp`는 CMake가 자동 수집. 새 테스트 하니스는 `tests/support/pf_test.h` (`PF_TEST`, `PF_CHECK`, `PF_CHECK_EQ`)
+- `tests/unit|flow|regression/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
+- 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존
 - 보안: 키는 DSL/Flow에 직접 저장하지 않고 Key Reference로만 다룬다
 

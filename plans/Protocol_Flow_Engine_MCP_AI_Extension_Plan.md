@@ -1,5 +1,7 @@
 # Protocol Flow Engine — MCP / AI Protocol Engineering Extension Plan
 
+> **범위 안내 (2026-10-05)**: 이 문서 전체는 **Post-MVP(PM-7)** 이다. MVP(`docs/Milestones.md`의 MVP-A~C)에는 포함하지 않으며, Flow JSON/Validator(MVP-C)가 안정된 이후 진행한다. 본문의 DCO/Kernel 관련 내용은 PM-8에 의존한다.
+
 ## 1. 문서 목적
 
 본 문서는 기존 **Protocol Flow Engine + Flow Studio + OpenVPN/DCO** 개발계획을 확장하여, MCP(Model Context Protocol)를 통해 AI가 프로토콜의 정의·검증·컴파일·시험·운영을 지원하도록 하는 **AI Protocol Engineering Layer**의 개발계획을 정의한다.
@@ -1025,7 +1027,7 @@ Kernel에서는 오직 검증된 Runtime IR 또는 서명된 Flow만 받아들�
 
 ---
 
-# 26. OpenVPN DCO 적용
+# 26. OpenVPN DCO 적용 (Post-MVP, PM-8 의존)
 
 기존 OpenVPN DCO 연구와 결합하면 다음 구조가 가능하다.
 
@@ -1334,7 +1336,9 @@ AI
 
 ---
 
-# 33. 권장 MVP 범위
+# 33. 권장 MVP 범위 (MCP 계층의 범위, Post-MVP PM-7)
+
+> 아래의 "OpenVPN DCO / Runtime" 배포는 PM-8 이후의 최종 경로이다. PM-7 단계에서는 배포 대상을 **User Runtime까지**로 한정하고, DCO/Kernel 배포는 PM-8 완료 후 확장한다.
 
 첫 번째 구현은 범용 프로토콜 전체를 대상으로 하지 않고 다음으로 제한한다.
 

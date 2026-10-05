@@ -12,16 +12,26 @@
 | D-005 | 2026-10-05 | **오픈소스 활용 정책**: 기본은 오픈소스 사용, 부족하면 확장하되 upstream 업데이트를 방해하면 안 됨. 원본 수정 금지, Adapter 경유, 패치는 최후 수단(upstream 제안 우선). 상세: `docs/Upstream_Extension_Policy.md` | 확정 |
 | D-006 | 2026-10-05 | **MVP에서는 오픈소스 수정/패치가 필요한 작업 제외**. DCO Adapter, Kernel Runtime, Shared Memory Crypto는 Post-MVP. MVP는 OpenVPN 프로토콜을 Block으로 독립 구현하고 수정 없는 OpenVPN과의 상호운용으로 검증 | 확정 |
 | D-007 | 2026-10-05 | 구현 언어는 일단 **C++17**(CMake/CTest)로 시작 | 잠정 (Rust 병행 여부 미결정) |
+| D-008 | 2026-10-05 | **MVP 프로토콜 프로파일 확정(초안)**: Linux 클라이언트 전용, 수정 없는 OpenVPN 2.6 서버 상대, UDP+TUN, TLS 1.3 + tls-crypt + AES-256-GCM. "wire 호환"은 이 프로파일 범위에 한정. 상세: `docs/OpenVPN_Interop_Profile.md` (`[검증]` 항목은 구현 전 확인) | 확정(범위) / 세부 검증 대기 |
+| D-009 | 2026-10-05 | **MVP에서 Control Plane은 Flow가 아닌 일반 코드**로 구현 (타이머·재전송 상태머신은 DAG Flow로 표현 곤란). Flow 표현 여부는 PM-4에서 결정 | 확정 |
+| D-010 | 2026-10-05 | **Clean-room 원칙**: 구현 근거는 공개 문서·RFC·pcap으로 한정, OpenVPN 소스 복사/전사 금지. iOS 빌드에는 GPL 코드 미포함. OpenVPN/DCO는 테스트 상대 또는 별도 프로세스로만 사용(링크 금지). 법무 검토 전제 | 확정 |
+| D-011 | 2026-10-05 | **마일스톤 재편**: M0 하드닝 → MVP-A(Linux 클라이언트 상호운용) → MVP-B(TCP+폴백) → MVP-C(Flow JSON+Validator) → Post-MVP(PM-1~PM-10). MVP 밖 항목은 모두 `docs/Milestones.md`의 Post-MVP로 정리. DCO/Kernel은 PM-8(🔧) | 확정 |
+| D-012 | 2026-10-05 | **설계 리뷰(Opus) 권고 반영(A안)**: 문서 정합화, 위협 모델·키 관리 초안(`docs/Threat_Model_and_Key_Management.md`), CI 하드닝(-Werror, ASan/UBSan, fuzz) | 반영 완료 |
 
 ## 미결정 사항 (Open Questions)
 
-1. Relay 구현: 자체 서버 vs 기존 도구(수정 없이) 활용
+1. Relay 구현: 자체 서버 vs 기존 도구(수정 없이) 활용 (PM-2)
 2. 구현 언어: C++17 고정 vs Rust 병행
-3. 모바일 TLS/암호 라이브러리 (BoringSSL 등)
+3. 모바일 TLS/암호 라이브러리 (BoringSSL 등) (PM-1)
 4. 플랫폼 지원 순서 (제안: Linux → Windows → Android → macOS → iOS)
-5. OpenVPN 연동 경계 조사 (Post-MVP: management interface vs DCO 경계)
+5. OpenVPN 연동 경계 조사: management interface vs DCO 경계 (PM-8)
+6. `docs/OpenVPN_Interop_Profile.md`의 `[검증]` 항목 확정 (키 유도 방식, nonce 구성, 상대 OpenVPN 정확한 버전)
+7. 성능 목표 수치 (MVP-A 기준선 측정 후), iOS 메모리 상한
+8. 오류 모델 / 버퍼 모델 (MVP-A의 A1에서 TDD로 확정)
+9. MSVC `/WX` 적용 시점 (현재 CI에서 `/W4`만, 검증 후 결정)
 
 ## 현재 진행 상황
 
-- 완료: 참고자료 정리, TDD 스캐폴드(CMake/CTest, CI 매트릭스), OpenVPN 헤더 파서, Device 지원 매트릭스, Transport Fallback 정책
-- 다음: MVP-1 — Phase 1(Block API, Runtime Context, 실행기), Transport 인터페이스 + UDP loopback(M1)
+- 완료: 참고자료 정리, TDD 스캐폴드, M0 하드닝(파서·device·fallback·하니스·CMake·CI), 마일스톤/프로파일/위협모델 문서, 계획서 정합화
+- 다음: MVP-A A1 — Block API, Flow Context, 오류 모델, 버퍼 모델을 테스트부터 작성
+- 확인 필요: GitHub Actions 첫 실행 결과(Windows/macOS/sanitizer/fuzz 잡)

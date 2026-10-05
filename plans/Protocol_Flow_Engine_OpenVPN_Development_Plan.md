@@ -3,9 +3,12 @@
 
 - 문서 버전: 0.1
 - 작성일: 2026-10-02
-- 1차 목표: OpenVPN Data Plane을 Block/Flow 방식으로 구현
-- 2차 목표: User/Kernel 공통 Runtime 및 OpenVPN DCO 연동
+- 1차 목표: OpenVPN Data Plane을 Block/Flow 방식으로 구현 (MVP)
+- 2차 목표: User/Kernel 공통 Runtime 및 OpenVPN DCO 연동 (**Post-MVP**, PM-8)
 - 장기 목표: VPN / SDP / NAC / N2SF / DLP에 공통으로 사용할 Protocol Flow Engine 구축
+
+> **범위 기준 문서**: 실제 마일스톤과 MVP 범위는 `docs/Milestones.md`, MVP 프로토콜 범위는 `docs/OpenVPN_Interop_Profile.md`, 결정 이력은 `docs/DECISIONS.md`가 우선한다.
+> 이 계획서에서 DCO/Kernel Runtime/DSL/Compiler 최적화/GUI/MCP 관련 내용은 **Post-MVP**이며, MVP 작업은 오픈소스를 수정하지 않는다(D-006).
 
 ---
 
@@ -60,7 +63,7 @@ Receive
 5. DSL을 Runtime에서 직접 해석하지 않고 Compiler/IR을 거쳐 최적화
 6. 동일한 Block을 User Mode와 Kernel Mode에서 재사용
 7. 암호화 키 자체는 Flow/DSL에 포함하지 않고 Runtime Key Reference로 관리
-8. OpenVPN DCO와 최소 변경으로 연동
+8. OpenVPN DCO와 최소 변경으로 연동 (**Post-MVP**, PM-8)
 9. 향후 WireGuard/SDP/N2SF 등의 프로토콜 및 보안 흐름에 확장
 
 ---
@@ -95,6 +98,9 @@ Receive
                                   |
                             Network Interface
 ```
+
+> MVP 범위: **User Runtime만** 사용한다. 위 그림의 "OpenVPN Core"는 MVP에서 *우리의 독립 구현(Block + 일반 코드 Control Plane)* 을 뜻하며, 수정 없는 OpenVPN은 **상호운용 테스트 상대**로만 쓴다. Kernel Runtime / DCO Adapter는 Post-MVP(PM-8)이다.
+> 또한 Control Plane은 타이머·재전송이 있는 상태머신이므로 MVP에서는 Flow(DAG)가 아닌 **일반 코드**로 구현하고, Flow로의 표현은 PM-4에서 결정한다.
 
 ---
 
@@ -941,7 +947,7 @@ C/C++ 코드로 Block을 연결하여 Flow 실행
 
 ---
 
-## Phase 3 — Crypto Provider
+## Phase 3 — Crypto Provider (Kernel Crypto는 Post-MVP)
 
 목표:
 
@@ -949,7 +955,7 @@ C/C++ 코드로 Block을 연결하여 Flow 실행
 - Key Reference
 - Session Key
 - Provider interface
-- Kernel Crypto
+- Kernel Crypto (Post-MVP)
 - User Crypto
 
 결과:
@@ -1290,7 +1296,7 @@ ProtocolFlow/
 
 # 25. 1차 MVP 범위
 
-처음부터 전체 DSL/GUI/Kernel을 만들지 않는다.
+처음부터 전체 DSL/GUI/Kernel을 만들지 않는다. **마일스톤 상세는 `docs/Milestones.md`가 기준**이며 여기에는 요약만 둔다.
 
 ## MVP 공통 제약
 
@@ -1298,63 +1304,31 @@ ProtocolFlow/
 MVP에서는 기존 오픈소스(OpenVPN, DCO 등)의 소스를 수정하거나 패치해야 하는 작업을 하지 않는다.
 ```
 
-- OpenVPN 프로토콜은 **우리 Block으로 독립 구현**하고, **수정하지 않은 OpenVPN과 wire 호환**되는지를 테스트(`tests/protocol`, `tests/regression`)로 검증한다.
-- 오픈소스는 **수정 없이** 사용한다: 라이브러리 링크(예: 암호 라이브러리), 외부 도구 호출, 상호운용 상대로 실행.
-- 오픈소스 수정/패치/DCO 커널 연동이 필요한 작업은 **Post-MVP**로 미룬다 (아래 참고).
+- OpenVPN 프로토콜은 **우리 코드로 독립 구현**하고, **수정하지 않은 OpenVPN 2.6**과 wire 호환되는지를 테스트(`tests/protocol`, `tests/regression`)로 검증한다.
+- 호환 범위는 `docs/OpenVPN_Interop_Profile.md`의 프로파일로 한정한다 (클라이언트 전용, UDP+TUN, TLS 1.3 + tls-crypt + AES-256-GCM 등).
+- 구현은 clean-room 원칙(공개 문서/pcap 기반)을 따른다.
+- 오픈소스는 **수정 없이** 사용한다: 라이브러리 링크(암호/TLS), 외부 도구 호출, 상호운용 상대로 실행.
 - 정책 상세: `docs/Upstream_Extension_Policy.md` §9
 
-### MVP-1
+### MVP-A — Linux 클라이언트 + OpenVPN 2.6 상호운용
 
 ```text
-C++ Block API
+Block API / 오류·버퍼 모델 / 정적 Flow
     +
-Static Flow
+Data Plane (DATA_V2, AES-256-GCM, replay)
     +
-OpenVPN RX/TX (독립 구현, User Runtime)
+Control Plane (일반 코드: reliability, tls-crypt, TLS 1.3, 키 유도, PUSH_REPLY)
+    +
+Linux UDP + TUN, 수정 없는 OpenVPN 2.6 서버와 상호운용
 ```
 
-### MVP-2
+### MVP-B — TCP 프레이밍 + Transport 폴백
 
-```text
-Crypto Provider
-    +
-Key Reference
-    +
-수정 없는 OpenVPN과의 상호운용 테스트 (Interop)
-```
+### MVP-C — Flow JSON v1 + Validator
 
-### MVP-3
+## Post-MVP
 
-```text
-Flow DSL
-    +
-Compiler
-    +
-IR
-```
-
-### MVP-4
-
-```text
-User Runtime
-    +
-Performance Optimization
-```
-
-### MVP-5
-
-```text
-GUI Flow Editor
-```
-
-## Post-MVP (오픈소스 수정/연동이 필요한 항목)
-
-| 항목 | 이유 | 비고 |
-|---|---|---|
-| Phase 4 OpenVPN DCO Adapter | 기존 DCO 경계에 연결, 패치가 필요할 수 있음 | MVP 이후 경계 조사 후 결정 |
-| Kernel Runtime (Phase 7) | DCO/커널과 통합 시 upstream 수정 가능성 | 독립 모듈로 가능한지 먼저 검토 |
-| Shared Memory Crypto Extension (§15) | 커널 데이터 경로 변경 필요 | 〃 |
-| OpenVPN 소스 패치가 필요한 모든 기능 | 정책 §1 6순위 | upstream 제안 우선 |
+DSL/Compiler/IR(PM-4), 성능 최적화(PM-3), GUI Flow Editor(PM-6), MCP/AI(PM-7), **DCO Adapter / Kernel Runtime / Shared Memory Crypto(PM-8, 수정 가능성 있음)**, 플랫폼 확장(PM-1), 네트워크 우회(PM-2), TAP(PM-5), 프로토콜 확장(PM-9), 암호 확장(PM-10)은 `docs/Milestones.md`를 따른다.
 
 ---
 
@@ -2127,7 +2101,9 @@ flow-runtime flow.bin
 
 ---
 
-# 45. 세 번째 PoC — DCO Adapter
+# 45. 세 번째 PoC — DCO Adapter (Post-MVP, PM-8)
+
+> MVP 범위 밖이다. 먼저 Adapter/IPC로 수정 없이 가능한지 조사한 뒤에만 진행한다 (`docs/Milestones.md` PM-8).
 
 ```text
 Existing OpenVPN
@@ -2191,6 +2167,8 @@ Modification: None
 
 # 47. 최종 개발 구조
 
+> 장기 목표 구조이다. MVP는 이 중 User Runtime 경로와 Flow JSON/Validator까지만 포함한다 (`docs/Milestones.md`).
+
 ```text
                     Protocol Flow Studio
                            |
@@ -2249,11 +2227,12 @@ Compiler:
 Runtime:
     C++
 
-Kernel:
-    Windows Kernel / WDK
+Kernel (Post-MVP, PM-8):
+    Linux ovpn / Windows WDK 검토, 오픈소스 수정 없이 가능한지 먼저 조사
 
-OpenVPN:
-    기존 OpenVPN + ovpn-dco-win 최대 재사용
+OpenVPN (MVP):
+    프로토콜은 독립 구현, 수정 없는 OpenVPN 2.6은 상호운용 테스트 상대로만 사용
+    (ovpn-dco-win 재사용은 Post-MVP)
 
 Crypto:
     Crypto Provider abstraction
@@ -2265,16 +2244,18 @@ Test:
     Unit + Flow + Packet replay + Performance
 
 CI:
-    기존 GitLab CI 활용
+    GitHub Actions (Linux/Windows/macOS 매트릭스, ASan/UBSan, fuzz 스모크)
 ```
 
-Rete.js는 control-flow/dataflow 엔진과 code generation 관련 기능을 제공하므로 단순 캔버스보다 본 프로젝트의 요구에 가까운 후보이다. citeturn0search3turn0search18
+Rete.js는 control-flow/dataflow 엔진과 code generation 관련 기능을 제공하므로 단순 캔버스보다 본 프로젝트의 요구에 가까운 후보이다.
 
 ---
 
 # 49. 개발 순서 수정
 
-기존 계획을 다음 순서로 변경한다.
+> **대체됨 (2026-10-05, D-008)**: 아래 순서는 Editor PoC와 DCO Adapter를 Compiler/Runtime보다 앞에 두어 §19·§25·D-006과 충돌한다. **실제 순서는 `docs/Milestones.md`(MVP-A → MVP-B → MVP-C → Post-MVP)를 따른다.** 아래 내용은 이력으로만 남긴다.
+
+기존 계획을 다음 순서로 변경한다. (대체됨)
 
 ```text
 Phase 0

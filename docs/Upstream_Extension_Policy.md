@@ -89,6 +89,8 @@ upstream과의 경계에는 **계약 테스트(contract test)** 를 둔다.
 
 ## 7. 라이선스 주의
 
+> 독립 구현 시 **clean-room 원칙**과 **iOS 배포 시 GPL 코드 제외**는 `docs/Threat_Model_and_Key_Management.md` §6에 정리했다.
+
 - OpenVPN, Linux 커널 모듈 등은 **GPL 계열**이다. 우리 코드와 **같은 프로세스에 링크**하는지, **별도 프로세스/IPC로 분리**하는지에 따라 의무가 달라진다. 이 점도 "별도 프로세스 분리(4순위)"를 선호하는 이유다.
 - 각 의존성의 라이선스를 `third_party/README.md`에 기록하고, **상용 배포 전 법무 검토**를 한다. (본 문서는 법률 자문이 아니다.)
 - 라이선스와 버전 정보는 `docs/References_OpenSource_Papers.md`의 주의사항과 동일하게, 각 저장소의 LICENSE를 직접 확인한다.

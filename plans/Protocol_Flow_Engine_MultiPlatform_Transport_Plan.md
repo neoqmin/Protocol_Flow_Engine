@@ -134,6 +134,8 @@ ETH_PARSE, ARP_HANDLE, BROADCAST_FILTER, MAC_LEARNING(브리지 시)
 
 # 8. TDD 개발 단계
 
+> 마일스톤 배치는 `docs/Milestones.md`가 기준이다 (Linux UDP/TCP/폴백은 MVP-A/B, 플랫폼 확장·프록시/Relay·TAP은 Post-MVP PM-1/2/5). 아래 M0~M8은 이 문서 내부의 세부 단계이다.
+
 각 단계는 테스트를 먼저 작성한다.
 
 | 단계 | 내용 | 테스트 위치 |
@@ -160,7 +162,7 @@ MVP는 오픈소스 수정이 필요 없는 항목만 포함한다 (`docs/Upstre
 |---|---|---|
 | M0~M4 | O | Device 매트릭스, Fallback, UDP/TCP/프록시 Transport (모두 자체 구현) |
 | M5, M6 | O | PAL Device: OS 공개 API 사용 (Wintun은 수정 없는 배포 바이너리) |
-| M7 Relay / Hole Punching | 자체 구현 시에만 | 기존 도구를 **수정 없이** 쓰는 경우는 가능, 패치가 필요하면 Post-MVP |
+| M7 Relay / Hole Punching | X (Post-MVP, PM-2) | Relay 방식 미결정 |
 | M8 TAP 전용 Block | O | |
 | Kernel Runtime / DCO 연동 | X (Post-MVP) | OpenVPN 계획서 §25 참고 |
 
