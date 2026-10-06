@@ -1,6 +1,6 @@
 # 마일스톤 (Milestones)
 
-기준 결정: D-006(MVP에서 오픈소스 수정 제외), D-008(MVP 프로토콜 프로파일), 설계 리뷰(2026-10-05), D-039(NAT 계획 채택 범위), D-040(Flow 모델 두 층).
+기준 결정: D-006(MVP에서 오픈소스 수정 제외), D-008(MVP 프로토콜 프로파일), 설계 리뷰(2026-10-05), D-039(NAT 계획 채택 범위), D-040(Flow 모델 두 층), D-044(PM-2 진입 논의, PM-11 신설).
 범위 상세는 `docs/OpenVPN_Interop_Profile.md`. 각 마일스톤은 **테스트를 먼저 작성(TDD)** 하고 종료 조건을 자동 테스트로 판정한다.
 
 표기: 🔧 = 오픈소스 수정/패치가 필요할 수 있는 항목 (조사 후 결정, MVP 불가)
@@ -16,7 +16,7 @@ M0 하드닝 ✅
   ↓ ───────────────── MVP 경계 (여기까지 오픈소스 수정 없음) ─────────────────
 [Post-MVP]
        PM-1 플랫폼 확장 (Windows → Android → macOS → iOS)
-       PM-2 네트워크 우회 (2a 프록시·Reverse Connect / 2b NAT Traversal: STUN·Hole Punching·TURN)
+       PM-2 네트워크 우회 (2b NAT Traversal 먼저: STUN·연결 서버·Hole Punching·TURN / 2a 프록시·Reverse Connect)
        PM-3 성능 최적화
        PM-4 DSL / Compiler / IR + State Machine 층 (F-1)
        PM-5 TAP / L2 Block
@@ -25,6 +25,7 @@ M0 하드닝 ✅
        PM-8 🔧 OpenVPN DCO / Kernel Runtime
        PM-9 프로토콜 확장 (WireGuard / SDP / NAC)
        PM-10 암호 확장 (tls-crypt-v2, KCMVP 등)
+       PM-11 OpenVPN 호환 서버 (수정 없는 OpenVPN 2.6 클라이언트 + pf_client)
        공통 기반 F-1 State Machine · F-2 FlowContext 일반화 · F-3 Trace (사용처가 먼저 오는 PM에서 진행)
 ```
 
@@ -79,7 +80,7 @@ M0 하드닝 ✅
 | ID | 마일스톤 | 내용 | 진입 조건 | 🔧 | 출처 |
 |---|---|---|---|---|---|
 | PM-1 | 플랫폼 확장 | Windows(Wintun) → Android(VpnService/JNI) → macOS(Network Extension) → iOS(메모리 예산 준수). PAL Device 구현, 플랫폼별 키 저장소, CI 빌드 잡(NDK/Xcode) | MVP-A | | MultiPlatform §3,4,7 |
-| PM-2 | 네트워크 우회 | **PM-2a**: HTTP CONNECT/SOCKS5, Reverse Connect. **PM-2b NAT Traversal**(N0~N7): STUN 코덱·클라이언트, NAT 시뮬레이터(RFC 4787), UDP hole punching, TURN Relay(`Transport` + 폴백 단계, 수정 없는 coturn 상호운용), NAT 랩. ICE 전체·TCP 펀칭·UPnP/PCP·IPv6는 후속 (`docs/PM2_NAT_Traversal_Scope.md`, D-039). **진입 시 범위 재논의**(피어 역할, 시그널링, PM-4와의 순서) | MVP-B (+2b는 F-2) | 🔧(기존 도구 패치 시, 트리 밖 NAT 모듈) | MultiPlatform §5, NAT 계획 |
+| PM-2 | 네트워크 우회 | **PM-2b NAT Traversal 먼저**(N0 ✅ ~ N8, D-044): ① N1 STUN 코덱 → N2 NAT 시뮬레이터(RFC 4787) → N3 STUN 클라이언트(coturn 상호운용) → ② PM-11 → ③ N4 TURN 클라이언트(`Transport` + 폴백) → N5 **연결 서버 `pf_connectd`**(STUN + 자체 TURN 서버 + rendezvous) → N6 hole punching → N7 VPN 통합(NAT 뒤의 우리 서버) → N8 NAT 랩. 제어 로직은 State Machine. **PM-2a**(HTTP CONNECT/SOCKS5, Reverse Connect)는 그 뒤. ICE 전체·TCP 펀칭·UPnP/PCP·IPv6는 후속 (`docs/PM2_NAT_Traversal_Scope.md`) | MVP-B + F-1/F-2/F-3 ✅ | 🔧(트리 밖 NAT 모듈은 쓰지 않음) | MultiPlatform §5, NAT 계획 |
 | PM-3 | 성능 최적화 | zero-copy, batching, lock 최소화, per-CPU. 기준선 대비 목표 수치 확정 후 진행 | MVP-A 기준선 | | OpenVPN §19 Phase 6, §21 |
 | PM-4 | DSL / Compiler / IR | Flow JSON 위 텍스트 DSL, IR, 최적화. **Control Plane 표현 = State Machine 층(F-1, D-040)**: 순환·타이머·상태는 Machine에만, 패킷 Flow는 DAG 유지. `protocol-machine` v1, Machine Validator(livelock·무한 재시도·timeout 없는 대기 거부), `KeepaliveTimer` 동등성 테스트로 시작 (`plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md` S0~S7) | MVP-C | | OpenVPN §7~9, §19 Phase 5, Flow 모델 확장 계획 |
 | PM-5 | TAP / L2 | ETH_PARSE, ARP, BROADCAST_FILTER, MAC learning, Validator의 L2 규칙 | MVP-A | | MultiPlatform §6 |
@@ -88,6 +89,7 @@ M0 하드닝 ✅
 | PM-8 | 🔧 OpenVPN DCO / Kernel Runtime | DCO Adapter, Kernel Runtime(Linux/Windows), Shared Memory Crypto. **먼저 Adapter/IPC로 수정 없이 가능한지 조사**, 불가 시 패치는 upstream 제안 우선 | MVP-A + 경계 조사 | 🔧 | OpenVPN §13~15, §45 |
 | PM-9 | 프로토콜 확장 | WireGuard, SDP, NAC, N2SF | MVP-C | | OpenVPN §23 |
 | PM-10 | 암호 확장 | tls-crypt-v2(opcode 10/11), 다른 cipher, KCMVP Provider | MVP-A | | OpenVPN §11, §22 |
+| PM-11 | OpenVPN 호환 서버 | `pf_server`(Linux): 수정 없는 OpenVPN 2.6 클라이언트와 `pf_client`를 모두 받음, MVP와 같은 프로파일. V1 `ControlServer` → V2 다중 클라이언트·peer-id → V3 서버 데이터 경로·주소 풀 → V4 TCP 서버 → V5 상호운용(수정 없는 클라이언트) → V6 soak·성능 (`docs/PM11_OpenVPN_Server_Scope.md`, D-044) | PM-2b ①(N1~N3) | | D-044 |
 
 ## Post-MVP 공통 기반 (F)
 

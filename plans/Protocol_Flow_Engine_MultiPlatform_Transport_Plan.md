@@ -109,7 +109,7 @@ Relay는 암호화된 패킷만 중계하며 복호화 키를 갖지 않는다.
 
 초기에는 Transport 인터페이스만 정의하고 Relay 구현은 후속 결정한다.
 
-> 2026-10-06 갱신(D-039): Hole Punching·Relay의 구체 적용안은 `docs/PM2_NAT_Traversal_Scope.md`. Relay는 TURN 표준(RFC 8656) + 수정 없는 coturn을 우선 검토하고, PM-2 진입 시 확정한다.
+> 2026-10-06 갱신(D-039, D-044): Hole Punching·Relay의 구체 적용안은 `docs/PM2_NAT_Traversal_Scope.md`. **Relay는 자체 TURN 서버(RFC 8656)로 구현**하고(연결 서버 `pf_connectd`에 rendezvous·STUN과 통합), 수정 없는 coturn은 양방향 상호운용 상대로 쓴다. hole punching의 VPN 사례를 위해 OpenVPN 호환 서버(PM-11)를 만든다.
 
 ---
 
