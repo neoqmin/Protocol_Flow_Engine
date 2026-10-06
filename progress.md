@@ -109,7 +109,7 @@
 ### MVP-A 공통 종료 조건
 
 - [x] 파서/디코더 fuzz·전수 테스트 통과, ASan/UBSan clean — fuzz 타깃 7개(`header`, `data_v2`, `control_packet`, `key_method2`, `push`, `tls_crypt`, `reliable`) 각 40초 실행(총 1.3억 회 이상) 크래시·불변식 위반 0, ASan/UBSan+`-Werror` 빌드의 unit/flow/regression 통과
-- [x] **오픈소스 수정 0건** (`third_party/`·`patches/` 비어 있음, 상호운용은 수정 없는 OpenVPN 2.6.19 바이너리)
+- [x] **오픈소스 수정 0건** (`third_party/`·`patches/`는 README뿐, 상호운용은 수정 없는 OpenVPN 2.6.19 바이너리)
 - [x] 성능 **기준선(baseline)** 측정 기록: [docs/Performance_Baseline.md](docs/Performance_Baseline.md) — 데이터 경로 ~2.4µs/패킷(고정비용 지배), 터널 TCP 517/752 Mbit/s로 stock 클라이언트(552/550)와 동급. 목표 수치는 이후 확정
 
 ## MVP-B — TCP 프레이밍 + Transport 폴백
