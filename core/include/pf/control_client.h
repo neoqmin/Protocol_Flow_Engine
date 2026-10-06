@@ -80,6 +80,12 @@ public:
     uint8_t tx_key_id() const { return tx_key_id_; }
     static uint8_t next_key_id(uint8_t k) { return k >= 7 ? 1 : static_cast<uint8_t>(k + 1); }
 
+    // Why a Failed client failed, for transport fallback: Unreachable = the path did not carry our packets / the server
+    // never answered (another transport may work); Rejected = the server answered and said no, or its answer was
+    // unacceptable (bad certificate, AUTH_FAILED, unsupported push): another transport would get the same answer.
+    enum class FailureKind { None, Unreachable, Rejected };
+    FailureKind failure_kind() const { return failure_kind_; }
+
     State state() const { return state_; }
     const std::string& failure_reason() const { return reason_; }
     const PushReply& push() const { return push_; }
@@ -111,7 +117,7 @@ private:
 
     explicit ControlClient(ControlClientConfig cfg);
 
-    void fail(const std::string& why);
+    void fail(const std::string& why, FailureKind kind = FailureKind::Rejected);
     KeyState* find_state(uint8_t key_id);
     KeyState* add_state(uint8_t key_id, bool initial);
     void handle_message(KeyState& ks, uint8_t opcode, const std::vector<uint8_t>& payload);
@@ -135,6 +141,7 @@ private:
 
     State state_ = State::Idle;
     std::string reason_;
+    FailureKind failure_kind_ = FailureKind::None;
     PushReply push_;
     Stats stats_;
     std::array<uint8_t, kSessionIdLen> my_sid_{}, server_sid_{};

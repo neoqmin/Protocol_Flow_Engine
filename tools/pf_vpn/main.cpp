@@ -2,7 +2,7 @@
 //
 //   pf_vpn --server 203.0.113.1:1194 --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key
 //          [--dev pfvpn0] [--mtu 1400] [--timeout 30] [--duration SECONDS] [--stats-interval SECONDS]
-//          [--reneg-seconds N] [--no-routes] [--proto udp|tcp]
+//          [--reneg-seconds N] [--no-routes] [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S]
 //
 // Runs until SIGINT/SIGTERM or --duration. Exit codes: 0 ok, 2 control channel failed, 4 usage/config,
 // 5 ping-restart (server silent), 6 TUN device error.
@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
     using namespace pf;
     pal::VpnOptions opt;
     std::string server, tc, ca, cert, key, proto = "udp";
+    int tcp_port = 0, connect_timeout_s = 10;
     int reneg_s = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -50,7 +51,8 @@ int main(int argc, char** argv) {
         else if (a == "--dev") val(opt.dev_name);
         else if (a == "--proto") val(proto);
         else if (a == "--mtu") num(opt.mtu);
-        else if (a == "--timeout") num(opt.connect_timeout_s);
+        else if (a == "--timeout" || a == "--connect-timeout") num(connect_timeout_s);
+        else if (a == "--tcp-port") num(tcp_port);
         else if (a == "--duration") num(opt.duration_s);
         else if (a == "--stats-interval") num(opt.stats_interval_s);
         else if (a == "--reneg-seconds") num(reneg_s);
@@ -68,7 +70,7 @@ int main(int argc, char** argv) {
         return 4;
     }
     opt.server.sin_port = htons(static_cast<uint16_t>(std::atoi(server.substr(colon + 1).c_str())));
-    if (proto != "udp" && proto != "tcp") { std::fprintf(stderr, "--proto must be udp or tcp\n"); return 4; }
+    if (proto != "udp" && proto != "tcp" && proto != "auto") { std::fprintf(stderr, "--proto must be udp, tcp or auto\n"); return 4; }
     if (opt.mtu < 576 || opt.mtu > 1500) { std::fprintf(stderr, "--mtu must be 576..1500\n"); return 4; }
 
     std::string tc_text;
@@ -85,12 +87,12 @@ int main(int argc, char** argv) {
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
 
-    if (proto == "tcp") {
-        std::string terr;
-        opt.transport = pal::open_tcp_transport(opt.server, static_cast<uint32_t>(opt.connect_timeout_s) * 1000u, terr);
-        if (!opt.transport) { std::fprintf(stderr, "pf_vpn: tcp connect failed: %s\n", terr.c_str()); return 2; }
-        std::printf("transport: tcp connected\n");
-    }
+    opt.tcp_server = opt.server;
+    if (tcp_port > 0) opt.tcp_server.sin_port = htons(static_cast<uint16_t>(tcp_port));
+    opt.policy = proto == "udp" ? FallbackPolicy({TransportKind::Udp})
+               : proto == "tcp" ? FallbackPolicy({TransportKind::Tcp})
+                                : FallbackPolicy({TransportKind::Udp, TransportKind::Tcp});      // auto: UDP first, TCP when UDP is blocked
+    opt.policy.set_connect_timeout_ms(static_cast<uint32_t>(connect_timeout_s) * 1000u);
 
     pal::VpnClient vpn;
     const pal::VpnExit rc = vpn.run(std::move(opt), g_stop);

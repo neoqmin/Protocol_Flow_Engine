@@ -64,7 +64,7 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libssl-dev openvpn tcpdump iproute2 iputils-ping openssl
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev openvpn tcpdump iproute2 iputils-ping nftables openssl
       - run: openvpn --version | head -1
       - run: cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON
       - run: cmake --build build

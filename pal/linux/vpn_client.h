@@ -4,21 +4,24 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <memory>
 
 #include "pf/control_client.h"
+#include "pf/fallback_connector.h"
 #include "pf/transport.h"
 
 namespace pf::pal {
 
 struct VpnOptions {
-    sockaddr_in server{};                 // UDP endpoint (used when `transport` is null)
-    std::unique_ptr<Transport> transport; // optional: a ready transport (must be pollable); default = UDP to `server`
+    sockaddr_in server{};                 // UDP endpoint
+    sockaddr_in tcp_server{};             // TCP endpoint (often the same address and port as `server`)
+    FallbackPolicy policy{{TransportKind::Udp}};   // transports to try, in order (connect_timeout_ms = per attempt)
+    FallbackConnector::TransportFactory transport_factory;   // optional override (tests); default: Linux UDP/TCP
     ControlClientConfig control;          // tls-crypt key, PKI; `keys` is set by the client
     std::string dev_name;                 // TUN name hint ("" = kernel's choice)
     int mtu = 1400;                       // TUN MTU (outer UDP/IP + DATA_V2 overhead must fit the path MTU)
-    int connect_timeout_s = 30;           // control channel must be Established by then
     int duration_s = 0;                   // 0 = until stopped; otherwise stop cleanly after this long
     int stats_interval_s = 0;             // 0 = no periodic stats lines
     bool install_routes = true;           // routes pushed by the server
@@ -44,11 +47,16 @@ public:
     const VpnStats& stats() const { return stats_; }
     const ControlClient::Stats& control_stats() const { return control_stats_; }
     const std::string& error() const { return error_; }
+    // Which transport carried the session (valid after the control channel came up).
+    TransportKind transport_kind() const { return kind_; }
+    const std::vector<FallbackConnector::AttemptRecord>& attempts() const { return attempts_; }
 
 private:
     VpnStats stats_;
     ControlClient::Stats control_stats_;
     std::string error_;
+    TransportKind kind_ = TransportKind::Udp;
+    std::vector<FallbackConnector::AttemptRecord> attempts_;
 };
 
 }  // namespace pf::pal

@@ -33,6 +33,7 @@ if [ ! -f ca.crt ]; then
 fi
 
 cleanup() {
+  nft delete table inet pfdrop 2>/dev/null || true
   kill ${SPID:-} ${CPID:-} ${TPID:-} 2>/dev/null || true
   wait 2>/dev/null || true
   ip netns del $NS 2>/dev/null || true
@@ -42,6 +43,14 @@ trap cleanup EXIT
 cleanup_pre() { ip netns del $NS 2>/dev/null || true; ip link del pfv0 2>/dev/null || true; }
 cleanup_pre
 export OUT HOST_IP PORT PROTO
+
+# LAB_DROP_UDP=1: a "firewall" in front of the server silently drops UDP to the VPN port (no ICMP, no error for the
+# sender), the situation transport fallback exists for. Needs nft. Counters are saved to udp_drop.txt at exit.
+if [ -n "${LAB_DROP_UDP:-}" ]; then
+  nft add table inet pfdrop
+  nft add chain inet pfdrop in '{ type filter hook input priority 0; }'
+  nft add rule inet pfdrop in iifname pfv0 udp dport $PORT counter drop
+fi
 
 ip netns add $NS
 ip link add pfv0 type veth peer name pfv1
@@ -68,6 +77,7 @@ if [ -n "${LAB_CLIENT_CMD:-}" ]; then
   rc=0; wait $CPID || rc=$?
   CPID=
   echo "$rc" > pf_client.exit
+  [ -n "${LAB_DROP_UDP:-}" ] && nft list table inet pfdrop > udp_drop.txt 2>&1
   echo "--- alternative client output (exit code $rc) ---"; cat pf_client.log
   echo "pcap packets: $(tcpdump -nr capture.pcap 2>/dev/null | wc -l) ($OUT/capture.pcap)"
   exit 0

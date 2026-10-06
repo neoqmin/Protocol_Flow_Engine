@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (B2 완료)
+> 마지막 갱신: 2026-10-06 (MVP-B 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -12,7 +12,8 @@
 - [x] **MVP-A 완료** (A1~A4 + 공통 종료 조건)
 - [x] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트
 - [x] **MVP-B / B2** — TCP Transport + 2.6 TCP 서버 상호운용
-- [ ] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트) (다음)
+- [x] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백
+- [ ] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙 (다음)
 
 ## 요약
 
@@ -21,8 +22,8 @@
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
-| MVP-B TCP + 폴백 | 🔶 B1·B2 완료, B3 다음 |
-| MVP-C Flow JSON + Validator | ⬜ |
+| MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
+| MVP-C Flow JSON + Validator | ⬜ (C1 다음) |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
 
 ---
@@ -126,7 +127,11 @@
   - [x] `Transport`에 `has_pending_input`/`wants_write`/`flush` 추가, `VpnClient` 이벤트 루프 반영, `pf_vpn --proto tcp`
   - [x] **수정 없는 OpenVPN 2.6.19 `tcp-server`와 상호운용**: 터널 ping + 서버 reneg-sec 3에서 재협상 7회, 손실 0 (`run_tunnel.sh`의 tcp 시나리오 2개, ASan/UBSan 빌드로도 통과)
   - [x] fuzz 타깃 `fuzz_tcp_framing`(임의 스트림×임의 청크) 60초 무결함
-- [ ] B3 UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트)
+- [x] B3 UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트) (D-033)
+  - [x] 코어 `FallbackConnector`(정책 순회 UDP→TCP, 시도별 기록, 주입 시계·팩토리): 폴백 근거는 **경로 불량의 증거**뿐 — 연결 거부, transport 종료/오류, 제어 채널 무응답(`ControlClient::FailureKind::Unreachable`), 시도 제한 시간 초과. **서버가 답한 거절(`Rejected`: 인증서·AUTH_FAILED·미지원 푸시)은 폴백하지 않고 즉시 중단**
+  - [x] 메모리 시뮬레이션 테스트 10개: UDP 정상(TCP 미개방), UDP 무음 차단→TCP(제한 시간만큼만 대기), 연결 거부 즉시 다음, 전부 차단 시 소진 보고, 재시도 횟수, 도중 종료, AUTH_FAILED 비폴백, 틀린 tls-crypt 키(차단과 구분 불가→폴백 후 실패), 제어 클라이언트 자체 포기=Unreachable. 변이 5개 모두 검출(1개는 테스트 보강 후)
+  - [x] `VpnClient`가 `FallbackConnector`로 연결, `pf_vpn --proto udp|tcp|auto --tcp-port --connect-timeout`
+  - [x] **실제 서버 + 실제 무음 UDP 차단**(nft가 UDP를 ICMP 없이 드롭, 카운터 확인): `--proto auto`에서 UDP 타임아웃 → TCP로 터널 up, ping 정상 (`fallback-udp-blocked`, ASan/UBSan 빌드로도 통과)
 
 ## MVP-C — Flow JSON v1 + Validator
 

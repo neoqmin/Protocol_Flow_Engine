@@ -52,10 +52,11 @@ std::unique_ptr<ControlClient> ControlClient::create(ControlClientConfig cfg, st
     return c;
 }
 
-void ControlClient::fail(const std::string& why) {
+void ControlClient::fail(const std::string& why, FailureKind kind) {
     if (state_ == State::Failed) return;
     state_ = State::Failed;
     reason_ = why;
+    failure_kind_ = kind;
 }
 
 ControlClient::KeyState* ControlClient::find_state(uint8_t key_id) {
@@ -348,7 +349,7 @@ std::vector<std::vector<uint8_t>> ControlClient::poll(uint64_t now_ms, uint32_t 
     if (state_ == State::Idle || state_ == State::Failed) return out;
 
     if (state_ == State::WaitPush) {
-        if (now_ms >= push_fail_at_) { fail("timed out waiting for PUSH_REPLY"); return out; }
+        if (now_ms >= push_fail_at_) { fail("timed out waiting for PUSH_REPLY", FailureKind::Unreachable); return out; }
         if (!push_requested_ && now_ms >= push_request_at_) {
             if (KeyState* init = find_state(0)) { push_requested_ = true; send_control_string(*init, "PUSH_REQUEST"); }
         }
@@ -375,7 +376,7 @@ std::vector<std::vector<uint8_t>> ControlClient::poll(uint64_t now_ms, uint32_t 
         }
         const auto due = ks->sender.due(now_ms);
         if (ks->sender.failed()) {
-            if (ks->initial) { fail("control channel timeout: no acknowledgement from the server"); return out; }
+            if (ks->initial) { fail("control channel timeout: no acknowledgement from the server", FailureKind::Unreachable); return out; }
             if (reneg_pending_ && *reneg_pending_ == id) abandon_reneg("renegotiation timed out");
             continue;                                          // a retiring key's state just stops sending
         }

@@ -22,6 +22,7 @@ public:
     // Either end sees Closed after this.
     void close_link() { closed_ = true; }
 
+    bool blocked_for_test() const { return blocked_; }
     uint64_t delivered() const { return delivered_; }
     uint64_t dropped() const { return dropped_; }
 

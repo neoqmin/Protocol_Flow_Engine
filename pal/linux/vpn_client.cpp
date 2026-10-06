@@ -14,6 +14,7 @@
 #include "pf/data_path.h"
 #include "pf/keepalive.h"
 #include "tun_device.h"
+#include "tcp_stream.h"
 #include "udp_transport.h"
 
 namespace pf::pal {
@@ -35,56 +36,74 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
     stats_ = {};
     control_stats_ = {};
     KeyStore keys;
-    opts.control.keys = &keys;
     std::string err;
-    auto client = ControlClient::create(std::move(opts.control), err);
-    if (!client) { error_ = "config: " + err; return VpnExit::ConfigError; }
     auto aead = make_openssl_aes256gcm();
     DataPath dp;
     if (!dp.init(&keys, aead.get())) { error_ = "data path init failed"; return VpnExit::ConfigError; }
 
-    std::unique_ptr<Transport> transport = std::move(opts.transport);
-    if (!transport) {
-        auto udp = std::make_unique<UdpTransport>();
-        if (!udp->open(opts.server, nullptr, err)) { error_ = "udp: " + err; return VpnExit::ConfigError; }
-        transport = std::move(udp);
+    // --- phase 1: control channel over the first transport that works (UDP -> TCP ...) --------------------------
+    FallbackConnector::TransportFactory make_transport = opts.transport_factory;
+    if (!make_transport) {
+        const sockaddr_in udp_peer = opts.server, tcp_peer = opts.tcp_server;
+        const uint32_t connect_ms = opts.policy.connect_timeout_ms();
+        make_transport = [udp_peer, tcp_peer, connect_ms](TransportKind kind, std::string& e) -> std::unique_ptr<Transport> {
+            if (kind == TransportKind::Udp) {
+                auto udp = std::make_unique<UdpTransport>();
+                if (!udp->open(udp_peer, nullptr, e)) return nullptr;
+                return udp;
+            }
+            if (kind == TransportKind::Tcp) return open_tcp_transport(tcp_peer, connect_ms, e);
+            e = "transport not implemented yet";
+            return nullptr;
+        };
     }
+    const ControlClientConfig base_control = opts.control;
+    auto make_client = [&](TransportKind kind, std::string& e) -> std::unique_ptr<ControlClient> {
+        ControlClientConfig c = base_control;                         // fresh client (and session ids) per attempt
+        c.keys = &keys;
+        if (kind == TransportKind::Tcp) {                             // the options string names the carrier (only a server warning if wrong)
+            const std::string from = "proto UDPv4";
+            const size_t at = c.options_string.find(from);
+            if (at != std::string::npos) c.options_string.replace(at, from.size(), "proto TCPv4_CLIENT");
+        }
+        return ControlClient::create(std::move(c), e);
+    };
+    FallbackConnector connector(opts.policy, make_transport, make_client);
+    const uint64_t t0 = now_ms();
+    connector.start(t0, unix_now());
+    while (!connector.done()) {
+        const uint64_t now = now_ms();
+        if (stop.load()) return VpnExit::Ok;
+        connector.step(now, unix_now());
+        if (connector.done()) break;
+        Transport* t = connector.transport();
+        int wait = 100;
+        if (auto w = connector.next_wakeup_ms(now)) wait = static_cast<int>(std::min<uint64_t>(100, *w > now ? *w - now : 0));
+        if (t && t->has_pending_input()) wait = 0;
+        pollfd p{t ? t->poll_fd() : -1, static_cast<short>(POLLIN | (t && t->wants_write() ? POLLOUT : 0)), 0};
+        if (p.fd < 0) { if (wait > 0) usleep(static_cast<useconds_t>(wait) * 1000); }
+        else (void)poll(&p, 1, wait);
+    }
+    attempts_ = connector.history();
+    for (const auto& a : attempts_)
+        std::printf("attempt: %s %s%s%s\n", a.kind == TransportKind::Udp ? "udp" : a.kind == TransportKind::Tcp ? "tcp" : "other",
+                    a.ok ? "ok" : "failed: ", a.ok ? "" : a.outcome.c_str(), "");
+    if (connector.state() == FallbackConnector::State::Failed) {
+        error_ = connector.failure_reason();
+        return VpnExit::ControlFailed;
+    }
+    std::unique_ptr<Transport> transport = connector.take_transport();
+    std::unique_ptr<ControlClient> client = connector.take_client();
+    kind_ = transport->kind();
     const int fd = transport->poll_fd();
     if (fd < 0) { error_ = "transport has no pollable descriptor"; return VpnExit::ConfigError; }
     auto send_all = [&](const std::vector<std::vector<uint8_t>>& dgrams) {
         for (const auto& d : dgrams) (void)transport->send(d.data(), d.size());
     };
-
-    // --- phase 1: control channel ------------------------------------------------------------------------------
-    const uint64_t t0 = now_ms();
-    client->start(t0, unix_now());
-    while (client->state() != ControlClient::State::Established) {
-        const uint64_t now = now_ms();
-        if (stop.load()) return VpnExit::Ok;
-        send_all(client->poll(now, unix_now()));
-        if (client->state() == ControlClient::State::Failed) {
-            error_ = "control channel failed: " + client->failure_reason();
-            control_stats_ = client->stats();
-            return VpnExit::ControlFailed;
-        }
-        if (client->state() == ControlClient::State::Established) break;
-        if (now > t0 + static_cast<uint64_t>(opts.connect_timeout_s) * 1000) { error_ = "control channel timeout"; return VpnExit::ControlFailed; }
-        transport->flush();
-        int wait = 100;
-        if (auto w = client->next_wakeup_ms()) wait = static_cast<int>(std::min<uint64_t>(100, *w > now ? *w - now : 0));
-        if (transport->has_pending_input()) wait = 0;
-        pollfd p{fd, static_cast<short>(POLLIN | (transport->wants_write() ? POLLOUT : 0)), 0};
-        const int pr_ = poll(&p, 1, wait);
-        if ((pr_ > 0 && (p.revents & (POLLIN | POLLHUP | POLLERR))) || transport->has_pending_input()) {
-            uint8_t buf[kMaxDatagram];
-            const RecvResult rr = transport->recv(buf, sizeof buf);
-            if (rr.status == TransportStatus::Ok) (void)client->on_datagram(buf, rr.len, now_ms(), unix_now());
-            else if (rr.status == TransportStatus::Closed || rr.status == TransportStatus::Error) { error_ = "transport closed"; return VpnExit::ControlFailed; }
-        }
-    }
     const PushReply pr = client->push();
     if (!pr.has_ifconfig) { error_ = "server pushed no ifconfig"; return VpnExit::ControlFailed; }
-    std::printf("control channel ESTABLISHED in %llu ms\n", static_cast<unsigned long long>(now_ms() - t0));
+    std::printf("control channel ESTABLISHED in %llu ms over %s\n", static_cast<unsigned long long>(now_ms() - t0),
+                kind_ == TransportKind::Tcp ? "tcp" : "udp");
 
     // --- phase 2: TUN ------------------------------------------------------------------------------------------
     TunDevice tun;

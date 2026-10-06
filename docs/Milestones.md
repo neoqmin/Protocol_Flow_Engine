@@ -59,7 +59,7 @@ M0 하드닝 ✅
 |---|---|---|
 | B1 ✅ | Transport 인터페이스 + UDP loopback 테스트 | 가짜 Transport로 단위 테스트 |
 | B2 ✅ | TCP Transport (2바이트 길이 프레이밍, 부분 읽기 처리) | OpenVPN 2.6 TCP 서버 상호운용 |
-| B3 | 폴백 통합: UDP 차단 시 TCP로 자동 전환 | UDP 차단 환경 시뮬레이션 테스트 |
+| B3 ✅ | 폴백 통합: UDP 차단 시 TCP로 자동 전환 | UDP 차단 환경 시뮬레이션 테스트 |
 
 ## MVP-C — Flow JSON v1 + Validator
 
