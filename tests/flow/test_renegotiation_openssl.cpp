@@ -49,7 +49,7 @@ struct DataCheck {
          .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
         auto rr = r.build(reg); PF_REQUIRE(rr.ok()); rx = std::move(rr.flow);
         FlowBuilder t("tx");
-        t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+        t.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
         auto tt = t.build(reg); PF_REQUIRE(tt.ok()); tx = std::move(tt.flow);
     }
     // server -> client
@@ -61,7 +61,7 @@ struct DataCheck {
         server_keys.bind_tx(key_id, tx_ref);
         PacketBuffer pkt = PacketBuffer::from_bytes(payload.data(), payload.size());
         FlowContext sc; sc.packet = &pkt; sc.keys = &server_keys; sc.aead = aead.get();
-        sc.header = OvpnHeader{OvpnOpcode::DataV2, key_id, 7}; sc.header_valid = true;
+        set_ovpn_header(sc, OvpnHeader{OvpnOpcode::DataV2, key_id, 7});
         if (run_flow(tx, sc).outcome != FlowOutcome::Completed) return false;
         FlowContext cc; cc.packet = &pkt; cc.keys = &client_keys; cc.aead = aead.get();
         if (run_flow(rx, cc).outcome != FlowOutcome::Completed) return false;
@@ -73,7 +73,7 @@ struct DataCheck {
         if (it == srv.keys_by_id.end()) return false;
         PacketBuffer pkt = PacketBuffer::from_bytes(payload.data(), payload.size());
         FlowContext cc; cc.packet = &pkt; cc.keys = &client_keys; cc.aead = aead.get();
-        cc.header = OvpnHeader{OvpnOpcode::DataV2, key_id, 7}; cc.header_valid = true;
+        set_ovpn_header(cc, OvpnHeader{OvpnOpcode::DataV2, key_id, 7});
         if (run_flow(tx, cc).outcome != FlowOutcome::Completed) return false;
         KeyStore server_keys;
         const KeyRef rx_ref = server_keys.add(it->second.rx);

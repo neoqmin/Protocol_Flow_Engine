@@ -1,5 +1,6 @@
 #pragma once
 #include "pf/block.h"
+#include "pf/ovpn_context.h"
 
 namespace pf {
 
@@ -9,7 +10,8 @@ namespace pf {
 // RX:  parse -> lookup_rx_key -> replay_check -> aead_decrypt -> replay_commit
 //   After aead_decrypt the packet holds only the plaintext (24-byte overhead pulled off, in place).
 //   replay_commit runs LAST so forged packets can never advance the replay window.
-// TX:  lookup_tx_key -> aead_encrypt   (caller sets ctx.header = {DataV2, key_id, peer_id})
+// TX:  lookup_tx_key -> aead_encrypt   (caller: set_ovpn_header(ctx, {DataV2, key_id, peer_id}); the TX flow
+//      declares "ovpn.header" as a flow input)
 //   Plaintext in ctx.packet (with >= 24 bytes headroom) becomes a complete wire packet.
 //
 // Needs ctx.keys (KeyStore) and ctx.aead (AeadProvider): missing = Error/Internal (wiring bug, not bad input).

@@ -1,5 +1,7 @@
 #include "pf/flow_json.h"
 
+#include "pf/block.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -102,7 +104,20 @@ public:
 private:
     void load_flow(const JsonValue& f, FlowDocument& d) {
         if (!f.is_object()) { error(FlowJsonErrorCode::WrongType, "/flow", "expected an object"); return; }
-        check_keys(f, "/flow", {"name", "description", "runtime"}, d.flow_extensions);
+        check_keys(f, "/flow", {"name", "description", "runtime", "inputs"}, d.flow_extensions);
+        if (const JsonValue* in = f.find("inputs")) {
+            if (!in->is_array()) error(FlowJsonErrorCode::WrongType, "/flow/inputs", "expected an array of context facts");
+            else if (in->items().size() > 64) error(FlowJsonErrorCode::TooMany, "/flow/inputs", "too many inputs");
+            else
+                for (size_t i = 0; i < in->items().size(); ++i) {
+                    const std::string p = "/flow/inputs/" + std::to_string(i);
+                    std::string s;
+                    if (!want_string(&in->items()[i], p, s, 64 + 1)) continue;
+                    if (!is_valid_fact(s)) error(FlowJsonErrorCode::BadValue, p, "a context fact looks like \"ovpn.header\" ([a-z][a-z0-9_]* segments joined by '.')");
+                    else if (std::find(d.inputs.begin(), d.inputs.end(), s) != d.inputs.end()) error(FlowJsonErrorCode::BadValue, p, "duplicate input");
+                    else d.inputs.push_back(s);
+                }
+        }
         std::string name;
         if (want_string(require(f, "name", "/flow"), "/flow/name", name)) {
             if (!is_valid_flow_id(name)) error(FlowJsonErrorCode::BadValue, "/flow/name", "name must match [A-Za-z_][A-Za-z0-9_-]{0,63}");
@@ -314,6 +329,11 @@ std::string write_flow_json(const FlowDocument& d) {
     JsonValue rt = JsonValue::array();
     for (const auto& s : d.runtime) rt.push(JsonValue::string(s));
     flow.set("runtime", std::move(rt));
+    if (!d.inputs.empty()) {
+        JsonValue in = JsonValue::array();
+        for (const auto& s : d.inputs) in.push(JsonValue::string(s));
+        flow.set("inputs", std::move(in));
+    }
     for (const auto& x : d.flow_extensions) flow.set(x.first, x.second);
     root.set("flow", std::move(flow));
 

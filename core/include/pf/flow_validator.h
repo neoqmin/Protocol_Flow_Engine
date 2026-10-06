@@ -25,6 +25,9 @@ namespace pf {
 //   RuntimeUnsupported "user" is not among flow.runtime (the only runtime this build executes)
 //   Cycle              the flow can loop (flows are acyclic: bounded work per packet)
 //   Unreachable        a node cannot be reached from the first node
+//   BadInput           flow.inputs entry is not a context fact name (hand-built documents; the loader checks files)
+//   ContextNotProduced a block consumes a context fact that is not a flow input nor produced on every path to it
+//                      (e.g. aead_decrypt before parse_data_v2) - F-2, block.h
 //   Internal           compile step disagreed with the validator (a bug, never a user error)
 struct FlowIssue {
     std::string code;

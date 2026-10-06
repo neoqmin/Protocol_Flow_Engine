@@ -34,7 +34,7 @@ PM-2는 원래 "프록시(HTTP CONNECT/SOCKS5), Relay, Hole Punching, Reverse Co
 | # | 충돌·누락 | 해소 |
 |---|---|---|
 | 1 | §5 Timer/State/Retry를 Flow 안에서 표현 → 현재 Flow는 DAG이고 순환 금지(D-009, D-036) | **두 층 모델(D-040)**: 순환은 State Machine 층에만 둔다. PM-4(F-1)가 아직이면 PM-2b의 제어 로직은 sans-I/O 일반 코드로 짜고, 나중에 동등성 테스트를 거쳐 Machine으로 옮긴다 |
-| 2 | `FlowContext`가 OpenVPN 전용 | STUN Block을 넣기 전에 **F-2 Context 일반화**를 먼저 한다 |
+| 2 | `FlowContext`가 OpenVPN 전용 | STUN Block을 넣기 전에 **F-2 Context 일반화**를 먼저 한다 → **완료(D-043)**: STUN은 `StunSlot`(새 `ProtocolId`)과 `stun.*` fact로 추가한다 |
 | 3 | §24 VPN 통합: 수정 없는 OpenVPN 서버는 STUN/hole punching을 하지 않는다. 지금은 클라이언트 전용(D-008) | 양쪽에서 구멍을 뚫는 hole punching은 **양 끝이 우리 구현일 때만** 의미가 있다. **우리 쪽 서버나 P2P 역할을 둘지 별도 결정이 필요하다**(§7 Q1). 그 결정 없이 VPN에 바로 쓸 수 있는 것은 TURN Relay 경로뿐이다 |
 | 4 | 시그널링 채널이 없다(§9 "Public Endpoint Info" 교환 방법 미정) | 랩용 최소 rendezvous 서버(후보 교환만, 인증 필수)를 N4 범위에 넣는다. 운영용 시그널링은 §7 Q2 |
 | 5 | §21 디렉터리 구조(`protocols/`, `natlab/`, `transport/`, `compiler/` …)가 기존 규칙과 다르다 | **기존 구조에 맞춘다**(§5 매핑표). 새 최상위 트리를 만들지 않는다 |

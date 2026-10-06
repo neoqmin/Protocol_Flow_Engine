@@ -1,10 +1,9 @@
 #pragma once
 #include <cstdint>
 
-#include "pf/data_v2.h"
 #include "pf/error.h"
-#include "pf/openvpn_header.h"
 #include "pf/packet_buffer.h"
+#include "pf/protocol_slot.h"
 
 namespace pf {
 
@@ -20,12 +19,11 @@ struct KeyRef {
 
 // Per-packet execution context shared by all Blocks of a Flow.
 // Blocks borrow `packet` (owned by the caller) and communicate through the
-// fields below instead of holding their own state.
+// fields below instead of holding their own state. Protocol-independent: what a
+// protocol's blocks parse lives in `proto` (e.g. OvpnSlot, pf/ovpn_context.h).
 struct FlowContext {
     PacketBuffer* packet = nullptr;
-    OvpnHeader header{};            // valid only when header_valid
-    bool header_valid = false;
-    DataV2Packet data_v2{};         // fields parsed by parse_data_v2 (RX data plane)
+    ProtocolSlot proto;             // protocol-specific state (tag + fixed storage, no heap)
     KeyRef key_ref{};
     KeyStore* keys = nullptr;       // borrowed services (owned by the caller/session)
     AeadProvider* aead = nullptr;

@@ -28,7 +28,7 @@ struct ServerPeer {
          .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
         auto rr = r.build(reg); PF_REQUIRE(rr.ok()); rx = std::move(rr.flow);
         FlowBuilder t("tx");
-        t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+        t.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
         auto tt = t.build(reg); PF_REQUIRE(tt.ok()); tx = std::move(tt.flow);
     }
     void sync() {                                            // pick up keys of completed key exchanges
@@ -42,7 +42,7 @@ struct ServerPeer {
         sync();
         PacketBuffer pkt = PacketBuffer::from_bytes(payload.data(), payload.size());
         FlowContext c; c.packet = &pkt; c.keys = &ks; c.aead = aead.get();
-        c.header = OvpnHeader{OvpnOpcode::DataV2, key_id, 7}; c.header_valid = true;
+        set_ovpn_header(c, OvpnHeader{OvpnOpcode::DataV2, key_id, 7});
         PF_REQUIRE(run_flow(tx, c).outcome == FlowOutcome::Completed);
         return std::vector<uint8_t>(pkt.data(), pkt.data() + pkt.size());
     }

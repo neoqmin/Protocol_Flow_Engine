@@ -30,6 +30,7 @@ Flow를 저장·교환하는 파일 형식. 구현: `core/include/pf/flow_json.h
 | | `flow`, `nodes` | ✔ | |
 | | `edges`, `meta` | | 생략 가능 |
 | `flow` | `name` | ✔ | ID 문법 |
+| | `inputs` | | 호출자가 미리 마련하는 **컨텍스트 fact** 목록(F-2, D-043). 예: TX Flow의 `["ovpn.header"]`. fact 문법은 `[a-z][a-z0-9_]*`를 `.`으로 이은 것, 중복 불가, 최대 64개. 비어 있으면 출력에서 생략 |
 | | `description` | | ≤ 4096바이트 |
 | | `runtime` | | 비어 있지 않은 배열, `"user"`/`"kernel"` 중복 없이. 기본 `["user"]`. `kernel`은 Post-MVP(PM-8)이며 데이터로만 허용 |
 | `nodes[]` | `id` | ✔ | ID 문법, **문서 안에서 유일** |
@@ -66,6 +67,8 @@ Flow를 저장·교환하는 파일 형식. 구현: `core/include/pf/flow_json.h
 | `RuntimeUnsupported` | `flow.runtime`에 `"user"`가 없음(이 빌드가 실행하는 유일한 런타임) |
 | `Cycle` | 순환 — 메시지에 `a -> b -> c -> a` 경로. Flow는 비순환이라 패킷당 작업량이 유한하다 |
 | `Unreachable` | 첫 노드에서 도달할 수 없는 노드(죽은 코드) |
+| `BadInput` | `flow.inputs` 항목이 fact 이름이 아님(코드로 만든 문서. 파일은 로더가 `BadValue`로 거부) |
+| `ContextNotProduced` | 블록이 소비하는 fact가 입력도 아니고, 그 노드까지의 **모든** 경로에서 만들어지지도 않음. 예: `aead_decrypt`가 `parse_data_v2`보다 앞. 메시지에 그 fact를 만드는 블록 목록을 넣는다. 그래프 검사가 모두 통과한 뒤에만 수행한다(`docs/Block_API.md` §11) |
 
 `compile_flow`는 검증을 통과한 문서만 `FlowBuilder`로 넘겨 실행 가능한 `Flow`를 만든다(노드 라벨 = 문서의 id). 무효 문서는 **Flow를 만들지 않는다**. 검증기와 빌더가 어긋나면 `Internal` 이슈(우리 버그)로 보고하며, 무작위 문서 6000개 차등 테스트로 어긋남이 없음을 확인한다.
 
@@ -104,3 +107,4 @@ RFC 8259 그대로: 주석·후행 쉼표·`NaN`/`Infinity`·BOM 불가. 추가�
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | 1 | 2026-10-06 | 최초: `format/version/flow/nodes/edges/meta`, `keyRef` 규칙, `x-` 확장 |
+| 1 (호환 추가) | 2026-10-06 | 선택 필드 `flow.inputs`, 의미 검증 `BadInput`/`ContextNotProduced`(D-043). §7 규칙 2(같은 버전 안의 선택 필드 추가)에 해당하므로 버전은 그대로다. 골든 `flow_data_v2_tx`에 `inputs: ["ovpn.header"]` 추가. **수정**: Decision 출구를 `"to": null`(종료)로 둔 문서를 Validator는 받아들이고 FlowBuilder는 거부하던 불일치를 고쳤다(FlowBuilder도 허용, 실행 결과는 Completed) |

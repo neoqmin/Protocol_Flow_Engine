@@ -63,6 +63,7 @@ struct FlowDocument {
     std::string name;
     std::string description;
     std::vector<std::string> runtime{"user"};           // "user" | "kernel" (kernel: Post-MVP, accepted as data)
+    std::vector<std::string> inputs;                    // context facts the caller provides (F-2), e.g. "ovpn.header"
     std::vector<FlowNodeDef> nodes;
     std::vector<FlowEdgeDef> edges;
     std::vector<std::pair<std::string, std::string>> meta;   // free-form string labels (author, ticket ...)

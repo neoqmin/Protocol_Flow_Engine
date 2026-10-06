@@ -41,9 +41,10 @@ PF_TEST(rx_data_v2_packet_has_header_stripped) {
     // DATA_V2 key 1 peer 0, then packet-id + payload bytes
     auto res = run(f, {0x49, 0, 0, 0, 0xAA, 0xBB, 0xCC}, ctx, pkt);
     PF_CHECK(res.outcome == FlowOutcome::Completed);
-    PF_CHECK(ctx.header_valid);
-    PF_CHECK(ctx.header.opcode == OvpnOpcode::DataV2);
-    PF_CHECK_EQ(ctx.header.key_id, 1);
+    const OvpnHeader* h = ovpn_header(ctx);
+    PF_REQUIRE(h != nullptr);
+    PF_CHECK(h->opcode == OvpnOpcode::DataV2);
+    PF_CHECK_EQ(h->key_id, 1);
     PF_CHECK_EQ(pkt.size(), size_t(3));
     PF_CHECK_EQ(pkt.data()[0], 0xAA);
     PF_CHECK((ctx.flags & kFlagControlPacket) == 0);

@@ -38,6 +38,8 @@ FlowValidation validate_flow(const FlowDocument& doc, const BlockRegistry& reg) 
     FlowValidation out;
     auto issue = [&](const char* code, const std::string& path, const std::string& msg) { out.issues.push_back({code, path, msg}); };
 
+    for (size_t i = 0; i < doc.inputs.size(); ++i)
+        if (!is_valid_fact(doc.inputs[i])) issue("BadInput", "/flow/inputs/" + std::to_string(i), "\"" + doc.inputs[i] + "\" is not a context fact name");
     if (std::find(doc.runtime.begin(), doc.runtime.end(), "user") == doc.runtime.end())
         issue("RuntimeUnsupported", "/flow/runtime", "this build executes only the \"user\" runtime; add \"user\" to flow.runtime");
 
@@ -162,6 +164,18 @@ FlowValidation validate_flow(const FlowDocument& doc, const BlockRegistry& reg) 
     }
     for (size_t i = 0; i < n; ++i)
         if (!reach[i]) issue("Unreachable", "/nodes/" + std::to_string(i), "node \"" + doc.nodes[i].id + "\" cannot be reached from the first node \"" + doc.nodes[0].id + "\"");
+    if (!out.issues.empty()) return out;
+
+    // Context contracts (F-2): every consumed fact must be an input or produced on every path to the consumer.
+    for (const auto& g : find_context_gaps(desc, succ, doc.inputs)) {
+        std::string producers;
+        for (const auto& b : reg.all())
+            for (const auto f : split_facts(b.produces))
+                if (f == g.fact) producers += std::string(producers.empty() ? "" : ", ") + b.name;
+        issue("ContextNotProduced", "/nodes/" + std::to_string(g.node) + "/block",
+              "block \"" + doc.nodes[g.node].block + "\" needs context fact \"" + g.fact + "\", which is not produced on every path to node \"" +
+                  doc.nodes[g.node].id + "\"" + (producers.empty() ? " (no registered block produces it; a flow input?)" : " (produced by: " + producers + ")"));
+    }
     return out;
 }
 
@@ -171,6 +185,7 @@ CompileResult compile_flow(const FlowDocument& doc, const BlockRegistry& reg) {
     if (!v.ok()) { r.issues = std::move(v.issues); return r; }
 
     FlowBuilder b(doc.name);
+    for (const auto& f : doc.inputs) b.input(f);
     for (const auto& n : doc.nodes) {
         const BlockDescriptor* d = reg.find(std::string_view(n.block));
         if (!d) { r.issues.push_back({"Internal", "", "validator accepted unknown block \"" + n.block + "\""}); return r; }

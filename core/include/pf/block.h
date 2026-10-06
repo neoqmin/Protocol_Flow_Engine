@@ -30,6 +30,10 @@ struct ParamSpec {
     bool required;
 };
 
+// Context contract (F-2, D-043): which context FACTS a block reads and which it establishes, as comma-separated fact
+// names ("ovpn.header,key"; syntax [a-z][a-z0-9_]* segments joined by '.'). The Validator and FlowBuilder reject a Flow in
+// which some path reaches a block before everything it consumes was produced (or given as a flow input), e.g.
+// "decrypt before parse". Facts are only established on the block's normal exits (Continue/Yes/No), never by Drop/Error.
 struct BlockDescriptor {
     BlockId id;
     const char* name;
@@ -37,7 +41,13 @@ struct BlockDescriptor {
     BlockHandler execute;
     const ParamSpec* params = nullptr;
     size_t param_count = 0;
+    const char* consumes = nullptr;
+    const char* produces = nullptr;
 };
+
+bool is_valid_fact(std::string_view fact);
+// Splits a descriptor fact list; empty for nullptr/"". Invalid syntax yields an empty view in the result.
+std::vector<std::string_view> split_facts(const char* list);
 
 class BlockRegistry {
 public:

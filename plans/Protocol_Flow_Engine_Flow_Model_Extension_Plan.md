@@ -190,6 +190,13 @@ MachineRunner::next_deadline_ms()   // 가장 이른 타이머 (호출자가 pol
 - ASan/UBSan을 통과한다.
 - 새 Validator 규칙에 대해 유효/무효 테스트와 차등 테스트를 둔다.
 
+### 6.1 v1 구현 (D-043)
+
+- 슬롯: `ProtocolSlot`(`pf/protocol_slot.h`, 128B). OpenVPN은 `OvpnSlot`(`pf/ovpn_context.h`).
+- 계약: `BlockDescriptor::consumes`/`produces`. 분석: `find_context_gaps`(FlowBuilder·Validator 공유). Flow 입력: `FlowBuilder::input`, Flow JSON `flow.inputs`.
+- 위 표의 `ContextNotProduced` 외에 `BadInput`이 생겼다. fact는 "슬롯 이름"보다 잘게 나눴다: `ovpn.header`, `ovpn.data_v2`, `key`.
+- 블록 설명은 `docs/Block_API.md` §11에 있다.
+
 ## 7. F-3 — Packet / Transition Trace
 
 NAT 계획 §15의 trace, 에디터의 "어느 노드에서 Drop됐나" 표시, MCP의 `trace.analyze`가 모두 같은 데이터를 필요로 한다. 하나로 만든다.
@@ -227,7 +234,7 @@ NAT 계획 §15의 trace, 에디터의 "어느 노드에서 Drop됐나" 표시, 
 | S3 ✅ | `protocol-machine` v1 로더/라이터 + 마이그레이션 규칙(Flow JSON v1 §7과 동일, `upgrade_document` 공유) | 스키마 테스트, fuzz 타깃(`fuzz_machine_load`) |
 | S4 ✅ | 동등성: `KeepaliveTimer`를 Machine으로 표현 → 기존 코드와 차등 테스트 (`tests/flow/test_machine_keepalive.cpp`, 골든 `machine_keepalive.machine.json`) | 무작위 이벤트·시간열에서 출력 동일, 변이 검출 |
 | S5 ✅ | F-3 Trace (`run_flow` + `MachineRunner`, D-042) | 비공개 규칙 테스트(실제 OpenVPN 골든), 성능 측정(trace 끔 상태 기준선 유지: `tests/performance/bench_flow_trace.cpp`) |
-| S6 | F-2 Context 일반화 | §6 종료 조건 |
+| S6 ✅ | F-2 Context 일반화 (D-043) | §6 종료 조건 — 모두 충족 |
 | S7 | 첫 실제 사용처: STUN binding transaction Machine (PM-2 N3와 함께) | 실제 STUN 서버 상대 상호운용 |
 
 S5·S6은 S1~S4와 독립이다. PM-2가 먼저 시작되면 S6 → S5 순서로 당겨서 할 수 있다(`docs/PM2_NAT_Traversal_Scope.md` §6 참고).

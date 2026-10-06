@@ -78,7 +78,7 @@ Flow static_data_rx(const BlockRegistry& r) {
 }
 Flow static_data_tx(const BlockRegistry& r) {
     FlowBuilder b("data_tx");
-    b.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+    b.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
     auto res = b.build(r);
     PF_REQUIRE(res.ok());
     return std::move(res.flow);
@@ -91,7 +91,7 @@ Flow from_json(const BlockRegistry& r, const char* file) {
 }
 
 bool same_graph(const Flow& a, const Flow& b) {
-    if (a.name() != b.name() || a.node_count() != b.node_count()) return false;
+    if (a.name() != b.name() || a.inputs() != b.inputs() || a.node_count() != b.node_count()) return false;
     for (size_t i = 0; i < a.node_count(); ++i) {
         const FlowNode &x = a.node(i), &y = b.node(i);
         if (x.label != y.label || x.block != y.block || x.type != y.type || x.execute != y.execute || x.on_continue != y.on_continue ||
@@ -123,10 +123,13 @@ Outcome run_header(const Flow& f, const std::vector<uint8_t>& wire) {
     o.result = run_flow(f, ctx);
     o.bytes.assign(pkt.data(), pkt.data() + pkt.size());
     o.flags = ctx.flags;
-    o.header_valid = ctx.header_valid;
-    o.opcode = static_cast<int>(ctx.header.opcode);
-    o.key_id = ctx.header.key_id;
-    o.peer_id = ctx.header.peer_id;
+    const OvpnHeader* h = ovpn_header(ctx);
+    o.header_valid = h != nullptr;
+    if (h) {
+        o.opcode = static_cast<int>(h->opcode);
+        o.key_id = h->key_id;
+        o.peer_id = h->peer_id;
+    }
     return o;
 }
 
@@ -150,7 +153,7 @@ struct RxRig {
         o.result = run_flow(f, ctx);
         o.bytes.assign(pkt.data(), pkt.data() + pkt.size());
         o.flags = ctx.flags;
-        o.header_valid = ctx.header_valid;
+        o.header_valid = ovpn_header(ctx) != nullptr;
         return o;
     }
 };
@@ -247,8 +250,7 @@ PF_TEST(json_data_tx_reproduces_openvpns_exact_wire_bytes) {
             ctx.packet = &pkt;
             ctx.keys = &keys;
             ctx.aead = aead.get();
-            ctx.header = OvpnHeader{OvpnOpcode::DataV2, key_id, peer};
-            ctx.header_valid = true;
+            set_ovpn_header(ctx, OvpnHeader{OvpnOpcode::DataV2, key_id, peer});
             PF_REQUIRE(run_flow(*f, ctx).outcome == FlowOutcome::Completed);
             out.emplace_back(pkt.data(), pkt.data() + pkt.size());
         }

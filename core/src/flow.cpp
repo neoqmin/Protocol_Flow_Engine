@@ -2,6 +2,7 @@
 
 #include "pf/packet_buffer.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 namespace pf {
@@ -9,6 +10,65 @@ namespace pf {
 FlowBuilder& FlowBuilder::add(std::string label, BlockId block) {
     nodes_.push_back({std::move(label), block, std::nullopt, std::nullopt, std::nullopt});
     return *this;
+}
+
+FlowBuilder& FlowBuilder::input(std::string fact) {
+    if (!is_valid_fact(fact)) pending_errors_.push_back("input: invalid context fact '" + fact + "'");
+    inputs_.push_back(std::move(fact));
+    return *this;
+}
+
+std::vector<ContextGap> find_context_gaps(const std::vector<const BlockDescriptor*>& blocks,
+                                          const std::vector<std::vector<size_t>>& succ,
+                                          const std::vector<std::string>& inputs) {
+    std::vector<ContextGap> gaps;
+    const size_t n = blocks.size();
+    if (n == 0) return gaps;
+    // Fact universe -> bit index.
+    std::vector<std::string> facts(inputs.begin(), inputs.end());
+    auto index_of = [&](std::string_view f) {
+        for (size_t k = 0; k < facts.size(); ++k) if (facts[k] == f) return k;
+        facts.emplace_back(f);
+        return facts.size() - 1;
+    };
+    std::vector<std::vector<size_t>> consumes(n), produces(n);
+    for (size_t i = 0; i < n; ++i) {
+        if (!blocks[i]) continue;
+        for (const auto f : split_facts(blocks[i]->consumes)) if (!f.empty()) consumes[i].push_back(index_of(f));
+        for (const auto f : split_facts(blocks[i]->produces)) if (!f.empty()) produces[i].push_back(index_of(f));
+    }
+    const size_t m = facts.size();
+    // Topological order of the nodes reachable from the entry (iterative DFS post-order, reversed).
+    std::vector<size_t> order;
+    std::vector<uint8_t> state(n, 0);
+    std::vector<std::pair<size_t, size_t>> st{{0, 0}};
+    state[0] = 1;
+    while (!st.empty()) {
+        auto& [v, k] = st.back();
+        if (k < succ[v].size()) {
+            const size_t w = succ[v][k++];
+            if (w < n && state[w] == 0) { state[w] = 1; st.push_back({w, 0}); }
+        } else {
+            order.push_back(v);
+            st.pop_back();
+        }
+    }
+    std::reverse(order.begin(), order.end());
+    std::vector<std::vector<bool>> in(n);
+    in[0].assign(m, false);
+    for (const auto& f : inputs) in[0][index_of(f)] = true;
+    for (size_t v : order) {
+        if (in[v].empty()) continue;                       // unreachable (cannot happen for validated graphs)
+        for (size_t f : consumes[v]) if (!in[v][f]) gaps.push_back({v, facts[f]});
+        std::vector<bool> out = in[v];
+        for (size_t f : produces[v]) out[f] = true;
+        for (size_t w : succ[v]) {
+            if (w >= n) continue;
+            if (in[w].empty()) in[w] = out;               // first predecessor (all predecessors come earlier in order)
+            else for (size_t f = 0; f < m; ++f) in[w][f] = in[w][f] && out[f];
+        }
+    }
+    return gaps;
 }
 
 FlowBuilder::Pending* FlowBuilder::find_label(const std::string& label) {
@@ -55,13 +115,9 @@ FlowBuildResult FlowBuilder::build(const BlockRegistry& registry) const {
     }
 
     // Pass 2: resolve edges.
-    auto resolve = [&](const Pending& p, const std::optional<std::string>& target,
-                       const char* what, bool allow_end) -> size_t {
-        if (!target) return kNoNode;
-        if (target->empty()) {
-            if (!allow_end) err("node '" + p.label + "': " + what + " edge needs a target");
-            return kNoNode;
-        }
+    // "" = end of flow (allowed on every exit: Flow JSON "to": null).
+    auto resolve = [&](const Pending& p, const std::optional<std::string>& target, const char* what) -> size_t {
+        if (!target || target->empty()) return kNoNode;
         auto it = index.find(*target);
         if (it == index.end()) {
             err("node '" + p.label + "': " + what + " edge to unknown label '" + *target + "'");
@@ -75,14 +131,14 @@ FlowBuildResult FlowBuilder::build(const BlockRegistry& registry) const {
         if (n.execute == nullptr) continue;   // already reported
         if (n.type == BlockType::Action) {
             if (p.yes || p.no) err("node '" + p.label + "': YES/NO edge on a block that is not a decision");
-            n.on_continue = p.cont ? resolve(p, p.cont, "continue", true)
+            n.on_continue = p.cont ? resolve(p, p.cont, "continue")
                                    : (i + 1 < nodes_.size() ? i + 1 : kNoNode);
         } else {
             if (p.cont) err("node '" + p.label + "': decision has no continue edge");
             if (!p.yes) err("node '" + p.label + "': missing YES edge");
             if (!p.no) err("node '" + p.label + "': missing NO edge");
-            n.on_yes = resolve(p, p.yes, "YES", false);
-            n.on_no = resolve(p, p.no, "NO", false);
+            n.on_yes = resolve(p, p.yes, "YES");
+            n.on_no = resolve(p, p.no, "NO");
         }
     }
 
@@ -122,9 +178,22 @@ FlowBuildResult FlowBuilder::build(const BlockRegistry& registry) const {
     }
     for (size_t i = 0; i < nodes.size(); ++i)
         if (!seen[i]) err("unreachable node '" + nodes[i].label + "'");
+    if (!out.errors.empty()) return out;
+
+    // Context contracts: nothing may run before what it consumes was produced (F-2).
+    std::vector<const BlockDescriptor*> blocks(nodes.size());
+    std::vector<std::vector<size_t>> succ(nodes.size());
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        blocks[i] = registry.find(nodes[i].block);
+        succ[i] = successors(i);
+    }
+    for (const auto& g : find_context_gaps(blocks, succ, inputs_))
+        err("node '" + nodes[g.node].label + "': block '" + blocks[g.node]->name + "' needs context fact '" + g.fact +
+            "', which is not produced on every path to it");
 
     if (out.errors.empty()) {
         out.flow.name_ = name_;
+        out.flow.inputs_ = inputs_;
         out.flow.nodes_ = std::move(nodes);
     }
     return out;

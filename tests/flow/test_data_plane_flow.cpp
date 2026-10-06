@@ -42,14 +42,14 @@ struct Rig {
          .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
         auto rr = r.build(reg); PF_REQUIRE(rr.ok()); rx_flow = std::move(rr.flow);
         FlowBuilder t("dp_tx");
-        t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+        t.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
         auto tt = t.build(reg); PF_REQUIRE(tt.ok()); tx_flow = std::move(tt.flow);
     }
     // Encrypts `payload` for key_id 1 through the TX flow and returns the wire bytes.
     std::vector<uint8_t> seal(const std::vector<uint8_t>& payload, uint32_t peer = 0) {
         PacketBuffer p = PacketBuffer::from_bytes(payload.data(), payload.size());
         FlowContext c; c.packet = &p; c.keys = &keys; c.aead = &aead;
-        c.header = OvpnHeader{OvpnOpcode::DataV2, 1, peer}; c.header_valid = true;
+        set_ovpn_header(c, OvpnHeader{OvpnOpcode::DataV2, 1, peer});
         FlowResult r = run_flow(tx_flow, c);
         PF_REQUIRE(r.outcome == FlowOutcome::Completed);
         return std::vector<uint8_t>(p.data(), p.data() + p.size());
@@ -147,7 +147,7 @@ PF_TEST(tx_without_bound_key_is_an_error) {
     Rig g;
     PacketBuffer p = PacketBuffer::from_bytes(nullptr, 0);
     FlowContext c; c.packet = &p; c.keys = &g.keys; c.aead = &g.aead;
-    c.header = OvpnHeader{OvpnOpcode::DataV2, 6, 0}; c.header_valid = true;   // key_id 6 unbound
+    set_ovpn_header(c, OvpnHeader{OvpnOpcode::DataV2, 6, 0});   // key_id 6 unbound
     FlowResult r = run_flow(g.tx_flow, c);
     PF_CHECK(r.outcome == FlowOutcome::Errored);
     PF_CHECK(r.error == Error::UnknownKey);
@@ -159,7 +159,7 @@ PF_TEST(tx_stops_with_nonce_exhausted_instead_of_wrapping) {
     g.seal({1});                                      // uses the last id
     PacketBuffer p = PacketBuffer::from_bytes(nullptr, 0);
     FlowContext c; c.packet = &p; c.keys = &g.keys; c.aead = &g.aead;
-    c.header = OvpnHeader{OvpnOpcode::DataV2, 1, 0}; c.header_valid = true;
+    set_ovpn_header(c, OvpnHeader{OvpnOpcode::DataV2, 1, 0});
     FlowResult r = run_flow(g.tx_flow, c);
     PF_CHECK(r.outcome == FlowOutcome::Errored);
     PF_CHECK(r.error == Error::NonceExhausted);
@@ -169,7 +169,7 @@ PF_TEST(tx_without_headroom_reports_buffer_too_small) {
     Rig g;
     PacketBuffer p(/*headroom=*/8, /*capacity=*/16, 0);   // needs 24 bytes of headroom
     FlowContext c; c.packet = &p; c.keys = &g.keys; c.aead = &g.aead;
-    c.header = OvpnHeader{OvpnOpcode::DataV2, 1, 0}; c.header_valid = true;
+    set_ovpn_header(c, OvpnHeader{OvpnOpcode::DataV2, 1, 0});
     FlowResult r = run_flow(g.tx_flow, c);
     PF_CHECK(r.outcome == FlowOutcome::Errored);
     PF_CHECK(r.error == Error::BufferTooSmall);

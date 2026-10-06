@@ -30,14 +30,27 @@ class Flow {
 public:
     Flow() = default;
     const std::string& name() const { return name_; }
+    const std::vector<std::string>& inputs() const { return inputs_; }   // context facts the caller provides
     size_t node_count() const { return nodes_.size(); }
     const FlowNode& node(size_t i) const { return nodes_[i]; }
 
 private:
     friend class FlowBuilder;
     std::string name_;
+    std::vector<std::string> inputs_;
     std::vector<FlowNode> nodes_;
 };
+
+// Context contract check (F-2, D-043), shared by FlowBuilder and the Validator. `blocks[i]` is node i's descriptor,
+// `succ[i]` its successors (entry = node 0, graph acyclic and fully reachable). A fact is available at a node when it is
+// a flow input or produced by an earlier node on EVERY path from the entry; a gap is a consumed fact that is not.
+struct ContextGap {
+    size_t node;
+    std::string fact;
+};
+std::vector<ContextGap> find_context_gaps(const std::vector<const BlockDescriptor*>& blocks,
+                                          const std::vector<std::vector<size_t>>& succ,
+                                          const std::vector<std::string>& inputs);
 
 struct FlowBuildResult {
     Flow flow;
@@ -53,6 +66,9 @@ struct FlowBuildResult {
 class FlowBuilder {
 public:
     explicit FlowBuilder(std::string name) : name_(std::move(name)) {}
+
+    // A context fact the caller establishes before running the flow (e.g. TX: "ovpn.header").
+    FlowBuilder& input(std::string fact);
 
     FlowBuilder& add(std::string label, BlockId block);
     FlowBuilder& on_continue(const std::string& from, const std::string& to);
@@ -70,6 +86,7 @@ private:
     Pending* find_label(const std::string& label);
 
     std::string name_;
+    std::vector<std::string> inputs_;
     std::vector<Pending> nodes_;
     std::vector<std::string> pending_errors_;
 };

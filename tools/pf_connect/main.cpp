@@ -105,7 +105,7 @@ struct DataPlane {
          .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
         auto rr = r.build(reg);
         FlowBuilder t("tx");
-        t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+        t.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
         auto tt = t.build(reg);
         if (!rr.ok() || !tt.ok()) return false;
         rx = std::move(rr.flow);
@@ -235,8 +235,7 @@ int main(int argc, char** argv) {
                 PacketBuffer pkt = PacketBuffer::from_bytes(kPingPayload, kPingPayloadLen);
                 FlowContext ctx;
                 ctx.packet = &pkt; ctx.keys = &keys; ctx.aead = aead.get();
-                ctx.header = OvpnHeader{OvpnOpcode::DataV2, client->tx_key_id(), pr.peer_id};
-                ctx.header_valid = true;
+                set_ovpn_header(ctx, OvpnHeader{OvpnOpcode::DataV2, client->tx_key_id(), pr.peer_id});
                 if (run_flow(dp.tx, ctx).outcome == FlowOutcome::Completed) {
                     (void)send(fd, pkt.data(), pkt.size(), 0);
                     ++sent;

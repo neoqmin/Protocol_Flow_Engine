@@ -3,9 +3,12 @@
   "version": 1,
   "flow": {
     "name": "data_tx",
-    "description": "DATA_V2 transmit path: pick the TX key, then assign packet-id, add the header and encrypt.",
+    "description": "DATA_V2 transmit path: pick the TX key, then assign packet-id, add the header and encrypt. The caller provides the header (input ovpn.header).",
     "runtime": [
       "user"
+    ],
+    "inputs": [
+      "ovpn.header"
     ]
   },
   "nodes": [

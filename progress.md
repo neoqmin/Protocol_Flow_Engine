@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1 State Machine S0~S4 — D-041, F-3 Trace S5 — D-042)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1 State Machine — D-041, F-3 Trace — D-042, F-2 Context 일반화 — D-043)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -21,7 +21,8 @@
 - [x] **다음 Post-MVP 진입 항목 선택** → PM-4 F-1(State Machine)부터
 - [x] **PM-4 / F-1 S0~S4** — State Machine v1: `MachineRunner`·Validator·`protocol-machine` v1·`KeepaliveTimer` 동등성 (D-041, [docs/Machine_JSON_Schema_v1.md](docs/Machine_JSON_Schema_v1.md))
 - [x] **F-3 / S5 Trace** — `TraceSink`/`TraceRing`, `run_flow`·`MachineRunner` 기록, JSON Lines, `pf_client --trace` (D-042)
-- [ ] **다음**: S6 `FlowContext` 일반화, PM-4의 나머지(DSL/IR), 또는 런타임에서 `KeepaliveTimer`를 Machine으로 교체할지 결정(이제 trace로 관찰 가능)
+- [x] **F-2 / S6 FlowContext 일반화** — 프로토콜 슬롯 + 블록 컨텍스트 계약(consumes/produces) + `ContextNotProduced` 검사 (D-043)
+- [ ] **다음**: PM-4의 나머지(DSL/IR), 런타임에서 `KeepaliveTimer`를 Machine으로 교체할지 결정, 또는 PM-2 진입 논의(N0: F-2가 끝나 N1 STUN 선행 조건 충족)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -209,7 +210,13 @@
   - [x] S4 `KeepaliveTimer` 동등성: 무작위 시나리오 4000개 동일(동시 마감 100건 이상 포함), 골든 파일에서 로드한 Machine도 동일, 변이 7개 모두 검출, 늦은 poll의 차이 1건은 문서화·테스트로 고정
   - [x] 변이 12개(Validator 규칙 6, 런타임 6) 모두 검출(1개는 테스트 보강 후), ASan/UBSan(`-Werror`) 통과
   - [ ] 후속: `spawn`/변수/Decision guard(첫 사용처에서), 난수 주입(S7), 런타임에서 `KeepaliveTimer` 교체 여부
-- [ ] F-2 `FlowContext` 일반화 (S6: 프로토콜별 슬롯, `consumes`/`produces`, C3 동등성·성능 기준선 유지)
+- [x] F-2 `FlowContext` 일반화 v1 (S6, D-043)
+  - [x] `ProtocolSlot`(태그 + 128B 고정 저장소, plain data만, 힙 없음) + `OvpnSlot`(`data_v2_valid` 추가). `FlowContext`에서 OpenVPN 전용 필드 제거, 파서는 항상 새 슬롯
+  - [x] `BlockDescriptor::consumes`/`produces` + 등록 시 문법 검사, 기존 블록 12개에 선언(id·동작 무변경)
+  - [x] `find_context_gaps`(FlowBuilder·Validator 공유), `FlowBuilder::input`, Flow JSON `flow.inputs`(v1 호환 추가), `BadInput`/`ContextNotProduced`. TX Flow 6곳·골든 `flow_data_v2_tx`에 입력 선언
+  - [x] 테스트 8개: 슬롯, fact 문법, Builder/Validator 계약, 실제 OpenVPN 블록 배선 오류(decrypt 먼저·key 없이 replay·TX 입력 누락), JSON 왕복, **모든 경로 나열 오라클과 8000개 대조**, 패킷 간 슬롯 상태 비유출
+  - [x] 오라클이 찾은 기존 불일치 수정: Decision 출구 `to: null`을 FlowBuilder도 허용
+  - [x] C3 골든 동등성, 상호운용 3종(수정 없는 OpenVPN 2.6.19), ASan/UBSan, fuzz 3종 각 60초, DataPath 벤치 ±15% 이내. 변이 12개 모두 검출(2개는 테스트 보강 후)
 - [x] F-3 Packet / Transition Trace v1 (S5, D-042)
   - [x] `TraceSink` + 고정 크기 `TraceRing`(할당 1회, 덮어쓰기 개수), 이름 복사·UTF-8 경계 안전 절단, JSON Lines(종류별 필드)
   - [x] `run_flow` 노드/종료 기록(끈 경로는 별도 인스턴스라 검사 없음), `MachineRunner` 이벤트·전이·출력·종료 기록(핸들러 Flow 포함, 시계 전달)

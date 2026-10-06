@@ -73,6 +73,7 @@ ctest --test-dir build -L protocol --output-on-failure     # run_interop.sh(약 
 - 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존
 - Block 결과 계약: `Drop`=입력 탓(사유 필수) / `Error`=우리 실패. Action은 Continue, Decision은 Yes/No. 새 block id는 재번호 금지
+- 컨텍스트(D-043): 프로토콜 상태는 `FlowContext::proto` 슬롯(`OvpnSlot` 등, `ProtocolId` 재번호 금지)에, 블록은 `consumes`/`produces` fact를 선언한다. 호출자가 마련하는 fact는 Flow 입력(`FlowBuilder::input`, JSON `flow.inputs`). `docs/Block_API.md` §11
 - 보안: 키는 DSL/Flow에 직접 저장하지 않고 Key Reference로만 다룬다
 
 ## Git

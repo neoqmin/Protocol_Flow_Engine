@@ -17,7 +17,7 @@ bool DataPath::init(KeyStore* keys, AeadProvider* aead) {
     r.add("parse", kBlockParseDataV2).add("key", kBlockLookupRxKey).add("replay", kBlockReplayCheck)
      .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
     FlowBuilder t("data_tx");
-    t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
+    t.input(kFactOvpnHeader).add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
     auto rr = r.build(reg_);
     auto tt = t.build(reg_);
     if (!rr.ok() || !tt.ok()) return false;
@@ -35,8 +35,7 @@ Error DataPath::seal(PacketBuffer& pkt, uint8_t key_id, uint32_t peer_id) {
     ctx.packet = &pkt;
     ctx.keys = keys_;
     ctx.aead = aead_;
-    ctx.header = OvpnHeader{OvpnOpcode::DataV2, key_id, peer_id};
-    ctx.header_valid = true;
+    set_ovpn_header(ctx, OvpnHeader{OvpnOpcode::DataV2, key_id, peer_id});
     const FlowResult r = run_flow(tx_, ctx, nullptr, kDefaultMaxSteps, trace_);
     return r.outcome == FlowOutcome::Completed ? Error::None : (is_error(r.error) ? r.error : Error::Internal);
 }

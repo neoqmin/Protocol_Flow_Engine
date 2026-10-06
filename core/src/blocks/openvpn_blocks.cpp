@@ -1,6 +1,7 @@
 #include "pf/blocks/openvpn_blocks.h"
 
 #include "pf/openvpn_header.h"
+#include "pf/ovpn_context.h"
 
 namespace pf {
 namespace {
@@ -14,9 +15,10 @@ BlockResult internal_error(FlowContext& ctx) {
 
 BlockResult parse_header(FlowContext& ctx) {
     if (!ctx.packet) return internal_error(ctx);   // our bug, not bad input
-    switch (parse_ovpn_header(ctx.packet->data(), ctx.packet->size(), ctx.header)) {
+    OvpnSlot& s = ctx.proto.emplace<OvpnSlot>();
+    switch (parse_ovpn_header(ctx.packet->data(), ctx.packet->size(), s.header)) {
         case ParseStatus::Ok:
-            ctx.header_valid = true;
+            s.header_valid = true;
             return BlockResult::Continue;
         case ParseStatus::Truncated:
             ctx.error = Error::Truncated;
@@ -29,8 +31,9 @@ BlockResult parse_header(FlowContext& ctx) {
 }
 
 BlockResult reject_legacy(FlowContext& ctx) {
-    if (!ctx.header_valid) return internal_error(ctx);
-    if (is_legacy_opcode(ctx.header.opcode)) {
+    const OvpnHeader* h = ovpn_header(ctx);
+    if (!h) return internal_error(ctx);
+    if (is_legacy_opcode(h->opcode)) {
         ctx.error = Error::LegacyOpcode;
         return BlockResult::Drop;
     }
@@ -38,8 +41,9 @@ BlockResult reject_legacy(FlowContext& ctx) {
 }
 
 BlockResult is_data_v2(FlowContext& ctx) {
-    if (!ctx.header_valid) return internal_error(ctx);
-    return ctx.header.opcode == OvpnOpcode::DataV2 ? BlockResult::Yes : BlockResult::No;
+    const OvpnHeader* h = ovpn_header(ctx);
+    if (!h) return internal_error(ctx);
+    return h->opcode == OvpnOpcode::DataV2 ? BlockResult::Yes : BlockResult::No;
 }
 
 BlockResult strip_data_v2_header(FlowContext& ctx) {
@@ -57,9 +61,9 @@ BlockResult mark_control(FlowContext& ctx) {
 }
 
 const BlockDescriptor kBlocks[] = {
-    {kBlockParseOvpnHeader, "parse_ovpn_header", BlockType::Action, parse_header},
-    {kBlockRejectLegacyOpcode, "reject_legacy_opcode", BlockType::Action, reject_legacy},
-    {kBlockIsDataV2, "is_data_v2", BlockType::Decision, is_data_v2},
+    {kBlockParseOvpnHeader, "parse_ovpn_header", BlockType::Action, parse_header, nullptr, 0, nullptr, "ovpn.header"},
+    {kBlockRejectLegacyOpcode, "reject_legacy_opcode", BlockType::Action, reject_legacy, nullptr, 0, "ovpn.header", nullptr},
+    {kBlockIsDataV2, "is_data_v2", BlockType::Decision, is_data_v2, nullptr, 0, "ovpn.header", nullptr},
     {kBlockStripDataV2Header, "strip_data_v2_header", BlockType::Action, strip_data_v2_header},
     {kBlockMarkControlPacket, "mark_control_packet", BlockType::Action, mark_control},
 };
