@@ -62,6 +62,7 @@ tools/interop/lab.sh tools/interop/out 16   # 수정 없는 서버/클라이언�
 cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build build
 ctest --test-dir build -L protocol --output-on-failure     # run_interop.sh(약 50초) + run_tunnel.sh(약 45초) + run_transport_tunnel.sh(약 90초)
 ```
+`build/pf_stun`은 STUN 진단 도구(`--server ip:port [--discover] [--bind ip:port] [--probe-rto MS --probe-rm N]`, RFC 5780 NAT 동작 탐지, D-047). `ctest -L protocol`의 `pf_stun_coturn`은 수정 없는 coturn(`apt-get install coturn`)을 실제 커널 NAT(nftables) 너머에서 쓴다(약 27초, 네임스페이스 `pfsrv/pfnat/pfcli`).
 `build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
 `build/pf_client`는 Linux 클라이언트(UDP→TCP 폴백 + 실제 TUN, root 필요): `pf_client --server ip:port --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S] [--tun-name N] [--mtu 1400] [--duration S] [--stats-interval S] [--trace FILE]`(`--trace`: 데이터 경로 trace를 종료 시 JSON Lines로, D-042). 세션이 죽으면 종료 코드 2(재연결은 상위 감독자, D-029). 터널 테스트(ctest 라벨 `protocol`, 같은 랩 네임스페이스라 `RESOURCE_LOCK`으로 직렬화되며 **동시에 직접 실행 금지**): `run_tunnel.sh`(ping·재협상 부하, `PF_ONLY=soak PF_SOAK_SECONDS=3700` 옵트인 1시간 soak) 와 `run_transport_tunnel.sh`(UDP·TCP·UDP 무음 차단→TCP 폴백 5개 시나리오, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 둘 다 `PF_CLIENT=build/pf_client`.
 성능 기준선: `docs/Performance_Baseline.md` (`tests/performance/bench_data_path.cpp`, `tools/interop/bench_tunnel.sh`, Release 빌드 필수).

@@ -25,7 +25,7 @@ size_t padded(size_t n) { return (n + 3) & ~size_t{3}; }
 // Comprehension-required attributes this codec knows (RFC 8489 + the RFC 8656 TURN attributes N4/N5 will use).
 bool known_required(uint16_t t) {
     switch (t) {
-        case kAttrMappedAddress: case kAttrUsername: case kAttrMessageIntegrity: case kAttrErrorCode:
+        case kAttrMappedAddress: case kAttrChangeRequest: case kAttrUsername: case kAttrMessageIntegrity: case kAttrErrorCode:
         case kAttrUnknownAttributes: case kAttrRealm: case kAttrNonce: case kAttrMessageIntegritySha256:
         case kAttrPasswordAlgorithm: case kAttrUserhash: case kAttrXorMappedAddress:
         case 0x000C: case 0x000D: case 0x0012: case 0x0013: case 0x0016:      // TURN: CHANNEL-NUMBER LIFETIME XOR-PEER-ADDRESS DATA XOR-RELAYED-ADDRESS

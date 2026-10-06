@@ -171,6 +171,7 @@ MachineValidation validate_machine(const MachineDocument& d, const FlowLibrary* 
         else if (has_ms && (t.ms < 1 || t.ms > kMachineTimerMaxMs)) issue("TimerRange", p + "/ms", "ms must be 1.." + std::to_string(kMachineTimerMaxMs));
         else if (has_param && !is_param_name(t.param)) issue("TimerRange", p + "/param", "param names must match [a-z][A-Za-z0-9_]*");
         if (t.allow_disabled && !has_param) issue("TimerRange", p + "/allowDisabled", "allowDisabled applies to param timers only");
+        if (!t.backoff.empty() && !counter_idx.count(t.backoff)) issue("UnknownCounter", p + "/backoff", "unknown counter \"" + t.backoff + "\"");
     }
 
     if (looks_like_pem(d.description)) issue("SecretLiteral", "/machine/description", "PEM material must never be stored in a machine file");
@@ -383,7 +384,8 @@ struct MachineCompiler {
         for (const auto& t : d.timers) {
             m.timers_.push_back(t.name);
             m.events_.push_back("timer:" + t.name);
-            m.timer_.push_back({t.ms, t.param, t.allow_disabled, m.events_.size() - 1});
+            m.timer_.push_back({t.ms, t.param, t.allow_disabled, m.events_.size() - 1,
+                                t.backoff.empty() ? std::nullopt : m.find_counter(t.backoff)});
         }
         m.events_.push_back("auto");
         m.auto_event_ = m.events_.size() - 1;
@@ -500,8 +502,16 @@ bool MachineRunner::take(size_t ti, FlowContext& ctx, uint64_t now_ms, MachineSt
                 break;
             case Machine::ActionKind::Reset: counters_[a.index] = 0; break;
             case Machine::ActionKind::Arm:
-                if (duration_[a.index] == 0) deadlines_[a.index].reset();          // disabled timer: never fires
-                else deadlines_[a.index] = now_ms + duration_[a.index];
+                if (duration_[a.index] == 0) {
+                    deadlines_[a.index].reset();                                    // disabled timer: never fires
+                } else {
+                    uint64_t d = duration_[a.index];
+                    if (const auto c = m_->timer_[a.index].backoff) {               // exponential: d * 2^(n-1), capped
+                        for (int64_t k = 1; k < counters_[*c] && d < static_cast<uint64_t>(kMachineTimerMaxMs); ++k) d *= 2;
+                        d = std::min<uint64_t>(d, static_cast<uint64_t>(kMachineTimerMaxMs));
+                    }
+                    deadlines_[a.index] = now_ms + d;
+                }
                 break;
             case Machine::ActionKind::Cancel: deadlines_[a.index].reset(); break;
             case Machine::ActionKind::Emit:

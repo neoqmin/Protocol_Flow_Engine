@@ -38,6 +38,7 @@ inline constexpr uint16_t kMethodChannelBind = 0x009;
 
 // Attribute types. 0x0000-0x7FFF are comprehension-required, 0x8000-0xFFFF comprehension-optional.
 inline constexpr uint16_t kAttrMappedAddress = 0x0001;
+inline constexpr uint16_t kAttrChangeRequest = 0x0003;       // RFC 5780: value 4 bytes, flags below
 inline constexpr uint16_t kAttrUsername = 0x0006;
 inline constexpr uint16_t kAttrMessageIntegrity = 0x0008;
 inline constexpr uint16_t kAttrErrorCode = 0x0009;
@@ -53,6 +54,12 @@ inline constexpr uint16_t kAttrAlternateDomain = 0x8003;
 inline constexpr uint16_t kAttrSoftware = 0x8022;
 inline constexpr uint16_t kAttrAlternateServer = 0x8023;
 inline constexpr uint16_t kAttrFingerprint = 0x8028;
+inline constexpr uint16_t kAttrResponseOrigin = 0x802B;      // RFC 5780: address the response was sent from
+inline constexpr uint16_t kAttrOtherAddress = 0x802C;        // RFC 5780: the server's alternate address and port
+
+// CHANGE-REQUEST flags (RFC 5780 7.2).
+inline constexpr uint32_t kChangeIp = 0x04;
+inline constexpr uint32_t kChangePort = 0x02;
 
 constexpr bool is_comprehension_required(uint16_t attr_type) { return attr_type < 0x8000; }
 

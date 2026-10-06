@@ -40,12 +40,15 @@ struct MachineCounterDef {
 
 // Duration: either a literal `ms` (1 .. 24 h) or a `param` resolved when a runner is created. allow_disabled lets the
 // param be 0, meaning "never fires" (arm is a no-op), e.g. OpenVPN's `ping 0`.
+// backoff (optional): name of a counter; each arm uses duration * 2^(counter - 1) (counter 0 counts as 1), capped at
+// kMachineTimerMaxMs - exponential retransmission as STUN (RFC 8489 6.2.1) requires. Added to v1 compatibly (D-047).
 struct MachineTimerDef {
     std::string name;
     int64_t ms = 0;
     std::string param;
     bool allow_disabled = false;
     Extensions extensions;
+    std::string backoff;
 };
 
 struct MachineStateDef {
@@ -97,9 +100,11 @@ public:
     MachineBuilder& event(std::string e) { d_.events.push_back(std::move(e)); return *this; }
     MachineBuilder& output(std::string o) { d_.outputs.push_back(std::move(o)); return *this; }
     MachineBuilder& counter(std::string c, int64_t max) { d_.counters.push_back({std::move(c), max, {}}); return *this; }
-    MachineBuilder& timer_ms(std::string t, int64_t ms) { d_.timers.push_back({std::move(t), ms, "", false, {}}); return *this; }
+    MachineBuilder& timer_ms(std::string t, int64_t ms) { d_.timers.push_back({std::move(t), ms, "", false, {}, ""}); return *this; }
+    // Makes the last declared timer back off exponentially on `counter` (see MachineTimerDef).
+    MachineBuilder& backoff(std::string counter) { if (!d_.timers.empty()) d_.timers.back().backoff = std::move(counter); return *this; }
     MachineBuilder& timer_param(std::string t, std::string param, bool allow_disabled = false) {
-        d_.timers.push_back({std::move(t), 0, std::move(param), allow_disabled, {}});
+        d_.timers.push_back({std::move(t), 0, std::move(param), allow_disabled, {}, ""});
         return *this;
     }
     MachineBuilder& state(std::string id) { d_.states.push_back({std::move(id), false, "", {}}); return *this; }
@@ -196,7 +201,7 @@ private:
         std::optional<size_t> flow;
         std::vector<Action> actions;
     };
-    struct Timer { int64_t ms = 0; std::string param; bool allow_disabled = false; size_t event = 0; };
+    struct Timer { int64_t ms = 0; std::string param; bool allow_disabled = false; size_t event = 0; std::optional<size_t> backoff; };
 
     static std::optional<size_t> find(const std::vector<std::string>& v, std::string_view s) {
         for (size_t i = 0; i < v.size(); ++i) if (v[i] == s) return i;

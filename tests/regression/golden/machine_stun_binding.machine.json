@@ -1,0 +1,132 @@
+{
+  "format": "protocol-machine",
+  "version": 1,
+  "machine": {
+    "name": "stun_binding",
+    "description": "STUN Binding transaction: RFC 8489 6.2.1 retransmissions (Rc = 7, doubling RTO, final wait Rm * RTO)"
+  },
+  "events": [
+    "command:start",
+    "packet:response",
+    "packet:error"
+  ],
+  "outputs": [
+    "send"
+  ],
+  "counters": [
+    {
+      "name": "tries",
+      "max": 7
+    }
+  ],
+  "timers": [
+    {
+      "name": "rto",
+      "param": "rtoMs",
+      "backoff": "tries"
+    },
+    {
+      "name": "final",
+      "param": "finalMs"
+    }
+  ],
+  "states": [
+    {
+      "id": "idle",
+      "initial": true
+    },
+    {
+      "id": "waiting"
+    },
+    {
+      "id": "last"
+    },
+    {
+      "id": "done",
+      "final": "ok"
+    },
+    {
+      "id": "failed",
+      "final": "failed"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "idle",
+      "on": "command:start",
+      "actions": [
+        "emit:send",
+        "inc:tries",
+        "arm:rto"
+      ],
+      "to": "waiting"
+    },
+    {
+      "from": "waiting",
+      "on": "packet:response",
+      "actions": [
+        "cancel:rto"
+      ],
+      "to": "done"
+    },
+    {
+      "from": "waiting",
+      "on": "packet:error",
+      "actions": [
+        "cancel:rto"
+      ],
+      "to": "failed"
+    },
+    {
+      "from": "waiting",
+      "on": "timer:rto",
+      "guard": {
+        "counter": "tries",
+        "op": "<",
+        "value": 6
+      },
+      "actions": [
+        "emit:send",
+        "inc:tries",
+        "arm:rto"
+      ],
+      "to": "waiting"
+    },
+    {
+      "from": "waiting",
+      "on": "timer:rto",
+      "guard": {
+        "counter": "tries",
+        "op": ">=",
+        "value": 6
+      },
+      "actions": [
+        "emit:send",
+        "inc:tries",
+        "arm:final"
+      ],
+      "to": "last"
+    },
+    {
+      "from": "last",
+      "on": "packet:response",
+      "actions": [
+        "cancel:final"
+      ],
+      "to": "done"
+    },
+    {
+      "from": "last",
+      "on": "packet:error",
+      "actions": [
+        "cancel:final"
+      ],
+      "to": "failed"
+    },
+    {
+      "from": "last",
+      "on": "timer:final",
+      "to": "failed"
+    }
+  ]
+}

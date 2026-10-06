@@ -65,11 +65,14 @@ endif()
 # lives in platform/linux (PAL), never in core/.
 if(PF_HAVE_OPENSSL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_library(pf_platform_linux STATIC platform/linux/linux_net.cpp platform/linux/udp_transport.cpp
-              platform/linux/tcp_stream.cpp platform/linux/vpn_client.cpp)
+              platform/linux/tcp_stream.cpp platform/linux/vpn_client.cpp platform/linux/udp_socket.cpp)
   target_include_directories(pf_platform_linux PUBLIC platform/linux)
   target_link_libraries(pf_platform_linux PUBLIC pf_core)
   add_executable(pf_client tools/pf_client/main.cpp)
   target_link_libraries(pf_client PRIVATE pf_platform_linux)
+  # STUN client diagnostic (PM-2b N3): Binding / RFC 5780 discovery over a real UDP socket.
+  add_executable(pf_stun tools/pf_stun/main.cpp)
+  target_link_libraries(pf_stun PRIVATE pf_platform_linux)
 endif()
 
 if(PF_BUILD_TESTS)

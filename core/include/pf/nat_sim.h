@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "pf/nat_behavior.h"
 #include "pf/transport.h"
 
 namespace pf::natsim {
@@ -42,8 +43,8 @@ constexpr uint32_t ipv4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
 }
 std::string ip_to_string(uint32_t ip);
 
-enum class MappingBehavior : uint8_t { EndpointIndependent, AddressDependent, AddressAndPortDependent };
-enum class FilteringBehavior : uint8_t { EndpointIndependent, AddressDependent, AddressAndPortDependent };
+using MappingBehavior = NatMapping;               // pf/nat_behavior.h (shared with STUN discovery)
+using FilteringBehavior = NatFiltering;
 enum class PortAllocation : uint8_t { Preserve, Sequential, Random };
 const char* behavior_name(MappingBehavior m);
 const char* behavior_name(FilteringBehavior f);

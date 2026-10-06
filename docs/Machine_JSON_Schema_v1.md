@@ -46,7 +46,7 @@ State Machine(F-1, D-040/D-041)을 저장·교환하는 파일 형식이다. 구
 | | `events` | | 호출자가 넣는 이벤트: `"packet:<id>"` 또는 `"command:<id>"` |
 | | `outputs` | | `emit:` 대상 이름(ID 문법) |
 | | `counters` | | `{name, max}`. `max`는 1..1,000,000 |
-| | `timers` | | `{name, ms}` 또는 `{name, param, allowDisabled?}` (§3) |
+| | `timers` | | `{name, ms}` 또는 `{name, param, allowDisabled?}`, 선택 `backoff` (§3) |
 | | `states` | ✔ | `{id, initial?, final?}`. `final`은 `"ok"`/`"failed"` |
 | | `transitions` | ✔ | §2 |
 | | `meta` | | 문자열 값만, ≤ 64개 |
@@ -82,6 +82,7 @@ State Machine(F-1, D-040/D-041)을 저장·교환하는 파일 형식이다. 구
 ## 3. 타이머와 파라미터
 
 - `ms`: 1..86,400,000(24시간) 리터럴.
+- `backoff`(선택, D-047): 카운터 이름. `arm`할 때마다 지속시간 × 2^(카운터 값 − 1)을 쓴다(카운터 0은 1로 셈, 상한 24시간). STUN 재전송(RFC 8489 6.2.1)처럼 지수적으로 늘어나는 재시도용이다. 모르는 카운터면 `UnknownCounter`(`/timers/i/backoff`).
 - `param`: 이름(`[a-z][A-Za-z0-9_]*`). 값은 `MachineRunner::create`에서 받는다. `allowDisabled: true`이면 값 0을 허용하고, 0이면 그 타이머는 "꺼짐"이다(`arm`이 아무 일도 하지 않는다). OpenVPN의 `ping 0`이 이 경우다.
 - `create`는 **모든 param이 주어지고 다른 것은 주어지지 않아야** 성공한다. 오타가 조용히 무시되지 않게 하기 위함이다. 범위를 벗어난 값도 거부한다.
 
@@ -128,3 +129,4 @@ Flow JSON v1 §7과 같은 규칙이고, 구현(`upgrade_document`)도 공유한
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | 1 | 2026-10-06 | 최초: 평평한 상태, packet/command/timer/auto 이벤트, 카운터 guard, 5종 action, `unbounded` |
+| 1 (호환 추가) | 2026-10-06 | 타이머 선택 필드 `backoff`(D-047). 같은 버전 안의 선택 필드 추가이므로 버전은 그대로다. 정본 예시 `machine_stun_binding.machine.json` 추가 |

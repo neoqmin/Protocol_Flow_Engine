@@ -79,7 +79,7 @@
 
 | 위협 | 대응(안) |
 |---|---|
-| STUN 응답 위조·주입(잘못된 공인 주소를 믿게 함) | transaction id는 CSPRNG 96비트, 보낸 요청과 출처·id가 일치하는 응답만 수락. 인증 가능한 경우 MESSAGE-INTEGRITY(-SHA256) 검증. 공인 주소는 **힌트일 뿐**이고 연결 신뢰는 항상 VPN 계층의 TLS/AEAD가 결정한다 |
+| STUN 응답 위조·주입(잘못된 공인 주소를 믿게 함) — **N3에서 구현(D-047)**: CSPRNG transaction id(`RandomSource`), 보낸 서버 주소에서 온 응답만 수락(탐지 probe 제외), 쓸 수 없는 응답은 버리고 재전송 계속. MESSAGE-INTEGRITY 검증은 자격증명이 생기는 N4/N5에서 | transaction id는 CSPRNG 96비트, 보낸 요청과 출처·id가 일치하는 응답만 수락. 인증 가능한 경우 MESSAGE-INTEGRITY(-SHA256) 검증. 공인 주소는 **힌트일 뿐**이고 연결 신뢰는 항상 VPN 계층의 TLS/AEAD가 결정한다 |
 | hole punching probe 위조(제3자가 피어인 척 응답) | connectivity check에 시그널링으로 교환한 비밀(KeyRef)로 만든 인증을 붙인다. 인증되지 않은 probe는 `Drop` |
 | 열린 TURN Relay 남용(우리 Relay가 타인 트래픽 중계에 쓰임) | 자격증명 필수, permission은 rendezvous로 확인한 상대 주소에만, 할당 수·수명·대역폭 한도. **D-044로 자체 TURN 서버(연결 서버 `pf_connectd`)를 운영하므로 이 책임은 우리 것이다** — N5 종료 조건에 인증·한도·permission 강제 테스트를 둔다 |
 | Relay·시그널링 서버의 트래픽 관찰·조작 | §2의 "중간 노드" 원칙 그대로: **신뢰하지 않음**, 종단 간 암호화, Relay는 키를 갖지 않음. N5 종료 조건에 "Relay 쪽 캡처에 평문 없음"을 둔다 |

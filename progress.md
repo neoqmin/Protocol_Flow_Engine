@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 STUN 코덱 — D-045, N2 NAT 시뮬레이터 — D-046)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 — D-045, N2 — D-046, N3 STUN 클라이언트 — D-047)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -25,7 +25,8 @@
 - [x] **PM-2 진입 논의(N0)** — OpenVPN 호환 서버(PM-11 신설), 연결 서버 `pf_connectd`(STUN + 자체 TURN + rendezvous), coturn 양방향 상호운용, 순서 ① N1~N3 → ② PM-11 → ③ N4~N8 (D-044)
 - [x] **PM-2b / N1 STUN 코덱** — RFC 8489 코덱 + RFC 5769 벡터 4개(바이트 단위 재현) + `StunSlot` + `is_stun`/`parse_stun` 블록 + fuzz (D-045)
 - [x] **PM-2b / N2 메모리 NAT 시뮬레이터** — RFC 4787 `Nat` + realm 트리 `Network`(hairpin·CGN) + `NetworkTransport`, 9개 조합을 실제 STUN으로 검증 (D-046)
-- [ ] **다음: PM-2b / N3 STUN 클라이언트 Machine** (binding transaction, RFC 8489 재전송, RFC 5780 동작 탐지, 시뮬레이터 9조합, 수정 없는 coturn 상호운용)
+- [x] **PM-2b / N3 STUN 클라이언트** — Binding Machine(RFC 8489 재전송) + RFC 5780 탐지 + 응답기 + `pf_stun`, 시뮬레이터 27개 설정·수정 없는 coturn·실제 커널 NAT로 검증 (D-047)
+- [ ] **다음: PM-2b ① 완료 → ② PM-11 OpenVPN 호환 서버** (진입 시 5가지 결정: 동시성 모델, 설정 형식, 클라이언트 인증, 관리 인터페이스, 플랫폼 — `docs/PM11_OpenVPN_Server_Scope.md` §5)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -200,7 +201,13 @@
       - [x] `Network`: 공용·사설 realm 트리, 같은 규칙으로 hairpin·**CGN 중첩**, 지연, 단조 시계, 이유별 drop 카운터 / `NetworkTransport`(connected UDP `Transport`)
       - [x] 테스트 14개: 9개 조합 매핑·필터링, 포트 할당, timeout·갱신, 고갈·재사용, **관찰 오라클 대비 무작위 300×120단계**, 라우팅·hairpin·CGN·지연·Transport, **N1 STUN Binding을 9개 조합에 통과**(매핑 주소·다른 주소/포트 응답 도착 여부)
       - [x] 변이 14개 중 13개 검출(나머지 1개는 검출되면 안 되는 대조군), ASan/UBSan·OpenSSL 없는 빌드·clang `-Werror` 통과
-    - [ ] N3 STUN 클라이언트 Machine + 동작 탐지 (RFC 5780), 수정 없는 coturn 상호운용
+    - [x] N3 STUN 클라이언트 (D-047)
+      - [x] Binding transaction = State Machine(RFC 8489 6.2.1: Rc 7, 두 배 RTO, Rm×RTO), Machine 타이머 `backoff` 호환 추가, 골든 `machine_stun_binding.machine.json`
+      - [x] `BindingClient`: `RandomSource`의 transaction id(운영 OpenSSL, 테스트 결정적), 응답 검증(남의 것 / 버릴 것 / 오류 응답 구분), MAPPED-ADDRESS 대체 수용, trace
+      - [x] `NatDiscovery`(RFC 5780, 필터링 먼저, CHANGE-REQUEST 무시 서버 불신, probe 타이밍 설정), `respond_to_binding`(RESPONSE-ORIGIN·OTHER-ADDRESS·CHANGE-REQUEST·420), `NatMapping`/`NatFiltering` 공용 헤더
+      - [x] 시뮬레이터: **27개 설정 탐지 = 실제 설정**, NAT 없음, CGN 두 방향, RFC 5780 미지원, UDP 차단(39.5초), 고장 난 서버
+      - [x] `pf_stun` + PAL `UdpSocket`, **수정 없는 coturn 4.6.1 + 실제 커널 NAT(nftables)**: Binding, NAT 없음 EIM+EIF, masquerade EIM+APDF, fully-random APDM+APDF (`pf_stun_coturn`, CI interop 잡에 coturn 추가 — GitHub 러너에서는 미검증)
+      - [x] 테스트 18개 + `fuzz_stun_client` 80초 무결함, 변이 13개 모두 검출(2개는 테스트 보강 후), ASan/UBSan·OpenSSL 없는 빌드·clang `-Werror` 통과
   - ② PM-11 OpenVPN 호환 서버 (아래)
   - ③ 연결 서버 · hole punching · Relay
     - [ ] N4 TURN 클라이언트 → `Transport`, 폴백 `direct → turn`, coturn 상호운용, Relay 쪽 평문 없음

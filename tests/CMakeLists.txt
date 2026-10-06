@@ -84,6 +84,14 @@ if(PF_PROTOCOL_TESTS AND TARGET pf_client)
                    bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_transport_tunnel.sh)
   set_tests_properties(pf_transport_tunnel_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77 RESOURCE_LOCK pf_lab)
 endif()
+if(PF_PROTOCOL_TESTS AND TARGET pf_stun)
+  # PM-2b N3: pf_stun against an unmodified coturn (RFC 5780) through a real kernel NAT (nftables masquerade, plain and
+  # fully-random). Needs root + coturn; exits 77 (skipped) otherwise. Own namespaces (pfsrv/pfnat/pfcli).
+  add_test(NAME pf_stun_coturn
+           COMMAND ${CMAKE_COMMAND} -E env PF_STUN=$<TARGET_FILE:pf_stun>
+                   bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_stun_interop.sh)
+  set_tests_properties(pf_stun_coturn PROPERTIES LABELS protocol TIMEOUT 180 SKIP_RETURN_CODE 77 RESOURCE_LOCK pf_stun_lab)
+endif()
 if(PF_PROTOCOL_TESTS)
   file(GLOB PROTO_SRCS CONFIGURE_DEPENDS protocol/test_*.cpp)
   if(PROTO_SRCS)

@@ -131,7 +131,8 @@ private:
             const JsonValue& o = v.items()[i];
             if (!want_object(o, p)) continue;
             MachineTimerDef t;
-            check_keys(o, p, {"name", "ms", "param", "allowDisabled"}, t.extensions);
+            check_keys(o, p, {"name", "ms", "param", "allowDisabled", "backoff"}, t.extensions);
+            if (const JsonValue* x = o.find("backoff")) want_id(x, p + "/backoff", t.backoff);
             want_id(require(o, "name", p), p + "/name", t.name);
             if (const JsonValue* x = o.find("ms")) {
                 if (want_int(x, p + "/ms", t.ms) && t.ms == 0) error(FlowJsonErrorCode::BadValue, p + "/ms", "ms must be positive");
@@ -261,6 +262,7 @@ std::string write_machine_json(const MachineDocument& d) {
             if (t.ms != 0) o.set("ms", JsonValue::integer(t.ms));
             if (!t.param.empty()) o.set("param", JsonValue::string(t.param));
             if (t.allow_disabled) o.set("allowDisabled", JsonValue::boolean(true));
+            if (!t.backoff.empty()) o.set("backoff", JsonValue::string(t.backoff));
             for (const auto& x : t.extensions) o.set(x.first, x.second);
             a.push(std::move(o));
         }

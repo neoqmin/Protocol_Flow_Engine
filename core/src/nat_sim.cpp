@@ -13,22 +13,33 @@ std::string ip_to_string(uint32_t ip) {
 
 std::string Endpoint::to_string() const { return ip_to_string(ip) + ":" + std::to_string(port); }
 
-const char* behavior_name(MappingBehavior m) {
+const char* behavior_name(MappingBehavior m) { return nat_mapping_name(m); }
+const char* behavior_name(FilteringBehavior f) { return nat_filtering_name(f); }
+
+}  // namespace pf::natsim
+
+namespace pf {
+
+const char* nat_mapping_name(NatMapping m) {
     switch (m) {
-        case MappingBehavior::EndpointIndependent: return "EIM";
-        case MappingBehavior::AddressDependent: return "ADM";
-        case MappingBehavior::AddressAndPortDependent: return "APDM";
+        case NatMapping::EndpointIndependent: return "EIM";
+        case NatMapping::AddressDependent: return "ADM";
+        case NatMapping::AddressAndPortDependent: return "APDM";
     }
     return "?";
 }
-const char* behavior_name(FilteringBehavior f) {
+const char* nat_filtering_name(NatFiltering f) {
     switch (f) {
-        case FilteringBehavior::EndpointIndependent: return "EIF";
-        case FilteringBehavior::AddressDependent: return "ADF";
-        case FilteringBehavior::AddressAndPortDependent: return "APDF";
+        case NatFiltering::EndpointIndependent: return "EIF";
+        case NatFiltering::AddressDependent: return "ADF";
+        case NatFiltering::AddressAndPortDependent: return "APDF";
     }
     return "?";
 }
+
+}  // namespace pf
+
+namespace pf::natsim {
 
 NatConfig NatConfig::full_cone() {
     NatConfig c;
