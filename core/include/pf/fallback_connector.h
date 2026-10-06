@@ -16,7 +16,7 @@ namespace pf {
 // SANS-I/O except for the two factories: the caller supplies how to open a transport of a given kind and how to build
 // a fresh ControlClient, and calls step() with the clock. Deterministic and testable with LoopbackTransport.
 //
-// Falling back is decided ONLY by evidence that the path is bad (D-031: a blocked UDP path is silent, so that evidence
+// Falling back is decided ONLY by evidence that the path is bad (D-032: a blocked UDP path is silent, so that evidence
 // is "no answer within the deadline"):
 //   falls back  : factory failed (connect refused/unreachable), transport closed/errored, ControlClient Unreachable
 //                 (nothing acknowledged / no PUSH_REPLY), or connect_timeout_ms() elapsed

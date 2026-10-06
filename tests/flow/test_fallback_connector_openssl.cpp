@@ -1,5 +1,5 @@
 // B3: transport fallback end to end in memory. A UDP-blocking "firewall" is a LoopbackLink that silently drops
-// everything; the FallbackConnector must notice only through the missing answers (D-031), move to TCP, and still
+// everything; the FallbackConnector must notice only through the missing answers (D-032), move to TCP, and still
 // refuse to "fall back" from an answer the server really gave. Needs OpenSSL.
 #include <map>
 #include <memory>

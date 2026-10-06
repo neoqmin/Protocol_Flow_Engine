@@ -2,9 +2,9 @@
 # A4 protocol test: pf_vpn (UDP + TUN + control + data plane) against an UNMODIFIED OpenVPN 2.6 server.
 # Real tunnel traffic: ping through the TUN device in the client namespace to the server's tunnel address.
 # Needs root (netns, TUN), openvpn, tcpdump, iproute2, ping, openssl. Skips (77) when unavailable.
-#   PF_VPN=<path to pf_vpn> tests/protocol/run_tunnel.sh
+#   PF_VPN=<path to pf_vpn> tests/protocol/run_vpn_tunnel.sh
 # Soak / single scenario (A4 exit criterion is 1 hour, default reneg-sec 3600):
-#   TUNNEL_PROTO=tcp selects TCP.   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_VPN=... tests/protocol/run_tunnel.sh
+#   TUNNEL_PROTO=tcp selects TCP.   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_VPN=... tests/protocol/run_vpn_tunnel.sh
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "SKIP: needs root"; exit 77; }
 for t in openvpn tcpdump ip ping openssl; do command -v "$t" >/dev/null || { echo "SKIP: $t not installed"; exit 77; }; done

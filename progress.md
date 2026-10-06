@@ -105,9 +105,9 @@
 ### A4 — Linux 통합
 
 - [x] `DataPath`(코어, I/O 없음): A2 TX/RX Flow를 `seal`/`open`으로 감쌈. IP/Ping/Other 분류 — IP 아닌 인증 데이터는 TUN에 쓰지 않음. 변조·재생·미지 key_id·키 없음 테스트
-- [x] `pal/linux`: `TunDevice`(ioctl로 주소·MTU·up·라우트, `ip` 불필요), `VpnClient`(UDP+TUN `poll()` 루프, 핑 송신/ping-restart 감시, 통계), 실행 파일 `pf_vpn` (D-029)
-- [x] **터널 ping 성공**: `tests/protocol/run_tunnel.sh` — 수정 없는 OpenVPN 2.6 서버, 클라이언트 netns의 TUN으로 ping(56B·1300B), 서버 `reneg-sec 3`에서 22초간 재협상 7회·패킷 손실 0
-- [x] CTest `pf_tunnel_openvpn`(라벨 protocol) + CI `interop` 잡에 ping 설치. `-Werror`+ASan/UBSan 빌드 통과
+- [x] `pal/linux`: `TunDevice`(ioctl로 주소·MTU·up·라우트, `ip` 불필요), `VpnClient`(UDP+TUN `poll()` 루프, 핑 송신/ping-restart 감시, 통계), 실행 파일 `pf_vpn` (D-030)
+- [x] **터널 ping 성공**: `tests/protocol/run_vpn_tunnel.sh` — 수정 없는 OpenVPN 2.6 서버, 클라이언트 netns의 TUN으로 ping(56B·1300B), 서버 `reneg-sec 3`에서 22초간 재협상 7회·패킷 손실 0
+- [x] CTest `pf_vpn_tunnel_openvpn`(라벨 protocol) + CI `interop` 잡에 ping 설치. `-Werror`+ASan/UBSan 빌드 통과
 - [x] **1시간 연결 + 재협상 1회**: 3720초(기본 `reneg-sec` 3600), 수정 없는 OpenVPN 2.6.19. 재협상 1회(key_id 0→1), 실패 0, 복호 실패 0, 송신 실패 0, 양방향 7273패킷(1.66MB) 일치, ping 손실 0%. *(참고: 클라우드 컨테이너가 유휴 시 재시작되어 앞선 2회는 중단됨 — 코드 결함 아님)*
 - [ ] `ping-restart` 후 재연결 정책 (제품 계층, A4 범위 밖으로 이관 검토)
 
@@ -119,17 +119,17 @@
 
 ## MVP-B — TCP 프레이밍 + Transport 폴백
 
-- [x] B1 Transport 인터페이스 + UDP loopback 테스트 (D-031)
+- [x] B1 Transport 인터페이스 + UDP loopback 테스트 (D-032)
   - [x] `Transport`(코어, 패킷 단위 send/recv, 논블로킹, `TransportStatus`), 테스트용 `LoopbackTransport`(차단·드롭·용량·종료 시뮬레이션 — B3의 "UDP 차단" 재현용)
   - [x] `pal/linux/UdpTransport`(connected 소켓, `MSG_TRUNC`로 초과 데이터그램 감지, 다른 출처 패킷 필터링), `VpnClient`가 Transport만 사용
   - [x] 테스트: loopback 계약 7개(unit), 실제 127.0.0.1 UDP 5개(`pf_pal_tests`, root 불필요), 리팩터링 후 터널 테스트·ASan/UBSan 통과
-- [x] B2 TCP Transport (2바이트 길이 프레이밍, 부분 읽기) + 2.6 TCP 서버 상호운용 (D-032)
+- [x] B2 TCP Transport (2바이트 길이 프레이밍, 부분 읽기) + 2.6 TCP 서버 상호운용 (D-033)
   - [x] 코어 `ByteStream`(부분 읽기/쓰기 계약) + `FramedTransport`(프레이밍·재조립·송신 큐·역압, 소켓 없음). 읽기/쓰기 청크 1~100000바이트 전수, 프레임 중간 EOF/오류, 초과 프레임 폐기 후 정렬 유지, 큐 한도, 0바이트/65535바이트 프레임. 12개 + 변이 4개 모두 검출
   - [x] `pal/linux/TcpStream`(타임아웃 connect, `TCP_NODELAY`, `MSG_NOSIGNAL`) + 실제 127.0.0.1 TCP 테스트 3개(분할 세그먼트, 2.4MB 폭주 무손실·순서)
   - [x] `Transport`에 `has_pending_input`/`wants_write`/`flush` 추가, `VpnClient` 이벤트 루프 반영, `pf_vpn --proto tcp`
-  - [x] **수정 없는 OpenVPN 2.6.19 `tcp-server`와 상호운용**: 터널 ping + 서버 reneg-sec 3에서 재협상 7회, 손실 0 (`run_tunnel.sh`의 tcp 시나리오 2개, ASan/UBSan 빌드로도 통과)
+  - [x] **수정 없는 OpenVPN 2.6.19 `tcp-server`와 상호운용**: 터널 ping + 서버 reneg-sec 3에서 재협상 7회, 손실 0 (`run_vpn_tunnel.sh`의 tcp 시나리오 2개, ASan/UBSan 빌드로도 통과)
   - [x] fuzz 타깃 `fuzz_tcp_framing`(임의 스트림×임의 청크) 60초 무결함
-- [x] B3 UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트) (D-033)
+- [x] B3 UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트) (D-034)
   - [x] 코어 `FallbackConnector`(정책 순회 UDP→TCP, 시도별 기록, 주입 시계·팩토리): 폴백 근거는 **경로 불량의 증거**뿐 — 연결 거부, transport 종료/오류, 제어 채널 무응답(`ControlClient::FailureKind::Unreachable`), 시도 제한 시간 초과. **서버가 답한 거절(`Rejected`: 인증서·AUTH_FAILED·미지원 푸시)은 폴백하지 않고 즉시 중단**
   - [x] 메모리 시뮬레이션 테스트 10개: UDP 정상(TCP 미개방), UDP 무음 차단→TCP(제한 시간만큼만 대기), 연결 거부 즉시 다음, 전부 차단 시 소진 보고, 재시도 횟수, 도중 종료, AUTH_FAILED 비폴백, 틀린 tls-crypt 키(차단과 구분 불가→폴백 후 실패), 제어 클라이언트 자체 포기=Unreachable. 변이 5개 모두 검출(1개는 테스트 보강 후)
   - [x] `VpnClient`가 `FallbackConnector`로 연결, `pf_vpn --proto udp|tcp|auto --tcp-port --connect-timeout`
@@ -137,13 +137,13 @@
 
 ## MVP-C — Flow JSON v1 + Validator
 
-- [x] C1 Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙 (D-034, [docs/Flow_JSON_Schema_v1.md](docs/Flow_JSON_Schema_v1.md))
+- [x] C1 Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙 (D-035, [docs/Flow_JSON_Schema_v1.md](docs/Flow_JSON_Schema_v1.md))
   - [x] 코어 엄격 JSON(`json.h`): RFC 8259 + 중복 키/잘못된 UTF-8/단독 서로게이트/`\u0000` 거부, 깊이·크기 한도, int64 정확 처리, 줄/열 오류 위치, 안정적 출력. 단위 11개, fuzz(왕복 불변식) 60초 무결함
   - [x] Flow JSON v1 로더/라이터(`flow_json.h`): 구조·타입·이름·한도·id 유일·알 수 없는 필드 오류(`x-` 확장은 보존), **키 재료 거부**(비밀 이름·PEM·`*Ref` 형식), 여러 오류를 JSON Pointer 경로와 함께 한 번에 보고, 정규 출력(고정점). 단위 16개 + fuzz 60초 무결함
   - [x] 버전 규칙: 새 버전은 거부, 구버전은 단계별 마이그레이터로 현재 스키마로 올린 뒤 검증, 경로 없음/실패는 오류, 쓰기는 항상 현재 버전. 합성 v1→v3 마이그레이션 테스트
   - [x] 골든 Flow 3개(`flow_openvpn_rx`, `flow_data_v2_rx/tx`) — C3에서 정적 Flow와 동등성 비교
   - [x] 변이 9개 검출(1개는 죽은 코드 제거로 정리)
-- [x] C2 Block Registry + Validator (잘못된 Flow 사전 차단) (D-035)
+- [x] C2 Block Registry + Validator (잘못된 Flow 사전 차단) (D-036)
   - [x] `BlockDescriptor`에 파라미터 선언(`ParamSpec`) 추가(기존 블록 등록 코드 무변경), `BlockRegistry::all()`
   - [x] `validate_flow`: 알 수 없는 블록(+가까운 이름 제안), 파라미터 선언 대조, 끊어진 엣지, 포트-블록 타입 불일치, 중복 엣지, Decision 출구 누락, 런타임, **순환(경로 출력)**, 도달 불가 — JSON Pointer 경로와 함께 한 번에 여러 개 보고
   - [x] `compile_flow`/`load_flow_json`: 텍스트 → 파싱·마이그레이션 → 검증 → 실행 가능한 `Flow`. 무효 문서는 Flow를 만들지 않음. 문법/의미 오류가 같은 `{code,path,message}` 형태

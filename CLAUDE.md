@@ -57,7 +57,7 @@ cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build
 ctest --test-dir build -L protocol --output-on-failure     # tests/protocol/run_interop.sh, 약 50초
 ```
 `build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
-`build/pf_vpn`은 Linux 클라이언트(UDP+TUN, root): `pf_vpn --server H:P --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto --duration S --stats-interval S --mtu 1400]`. 터널 통합 테스트: `PF_VPN=build/pf_vpn tests/protocol/run_tunnel.sh` (UDP·TCP·UDP차단→TCP폴백 시나리오 5개, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 랩 네임스페이스를 쓰므로 `run_interop.sh`와 **동시에 실행 금지**.
+`build/pf_vpn`은 Linux 클라이언트(UDP+TUN, root): `pf_vpn --server H:P --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto --duration S --stats-interval S --mtu 1400]`. 터널 통합 테스트: `PF_VPN=build/pf_vpn tests/protocol/run_vpn_tunnel.sh` (UDP·TCP·UDP차단→TCP폴백 시나리오 5개, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 랩 네임스페이스를 쓰므로 `run_interop.sh`와 **동시에 실행 금지**.
 성능 기준선: `docs/Performance_Baseline.md` (`tests/performance/bench_data_path.cpp`, `tools/interop/bench_tunnel.sh`, Release 빌드 필수).
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 

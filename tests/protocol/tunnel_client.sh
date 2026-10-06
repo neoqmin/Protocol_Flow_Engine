@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs INSIDE the lab's client network namespace (started by run_tunnel.sh through lab.sh's LAB_CLIENT_CMD).
+# Runs INSIDE the lab's client network namespace (started by run_vpn_tunnel.sh through lab.sh's LAB_CLIENT_CMD).
 # Starts pf_vpn, waits for the tunnel, pings the server through it, then lets pf_vpn finish.
 # env: PFV OUT HOST_IP PORT TUNNEL_SECONDS (pf_vpn --duration) PF_VPN_EXTRA   exits with pf_vpn's code
 set -u
