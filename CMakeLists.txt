@@ -61,22 +61,15 @@ if(PF_HAVE_OPENSSL AND UNIX)
   target_link_libraries(pf_connect PRIVATE pf_core)
 endif()
 
-# A4: Linux client (UDP socket + TUN device). The OS-specific part lives in platform/linux (PAL), never in core/.
+# Linux client (A4/B): Transports (UDP, TCP framing), fallback, TUN device and the poll() loop. The OS-specific part
+# lives in platform/linux (PAL), never in core/.
 if(PF_HAVE_OPENSSL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_library(pf_platform_linux STATIC platform/linux/linux_net.cpp)
+  add_library(pf_platform_linux STATIC platform/linux/linux_net.cpp platform/linux/udp_transport.cpp
+              platform/linux/tcp_stream.cpp platform/linux/vpn_client.cpp)
   target_include_directories(pf_platform_linux PUBLIC platform/linux)
-  target_link_libraries(pf_platform_linux PUBLIC pf_options)
+  target_link_libraries(pf_platform_linux PUBLIC pf_core)
   add_executable(pf_client tools/pf_client/main.cpp)
-  target_link_libraries(pf_client PRIVATE pf_core pf_platform_linux)
-endif()
-
-# Linux client (PAL: pal/linux = TUN device + UDP/poll event loop). Linux only.
-if(PF_HAVE_OPENSSL AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_library(pf_pal_linux STATIC pal/linux/tun_device.cpp pal/linux/udp_transport.cpp pal/linux/tcp_stream.cpp pal/linux/vpn_client.cpp)
-  target_include_directories(pf_pal_linux PUBLIC pal/linux)
-  target_link_libraries(pf_pal_linux PUBLIC pf_core)
-  add_executable(pf_vpn tools/pf_vpn/main.cpp)
-  target_link_libraries(pf_vpn PRIVATE pf_pal_linux)
+  target_link_libraries(pf_client PRIVATE pf_platform_linux)
 endif()
 
 if(PF_BUILD_TESTS)

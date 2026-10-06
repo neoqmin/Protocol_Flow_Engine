@@ -1,37 +1,37 @@
 #!/usr/bin/env bash
-# A4 protocol test: pf_vpn (UDP + TUN + control + data plane) against an UNMODIFIED OpenVPN 2.6 server.
+# A4 protocol test: pf_client (UDP + TUN + control + data plane) against an UNMODIFIED OpenVPN 2.6 server.
 # Real tunnel traffic: ping through the TUN device in the client namespace to the server's tunnel address.
 # Needs root (netns, TUN), openvpn, tcpdump, iproute2, ping, openssl. Skips (77) when unavailable.
-#   PF_VPN=<path to pf_vpn> tests/protocol/run_vpn_tunnel.sh
+#   PF_CLIENT=<path to pf_client> tests/protocol/run_transport_tunnel.sh
 # Soak / single scenario (A4 exit criterion is 1 hour, default reneg-sec 3600):
-#   TUNNEL_PROTO=tcp selects TCP.   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_VPN=... tests/protocol/run_vpn_tunnel.sh
+#   TUNNEL_PROTO=tcp selects TCP.   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_CLIENT=... tests/protocol/run_transport_tunnel.sh
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "SKIP: needs root"; exit 77; }
 for t in openvpn tcpdump ip ping openssl; do command -v "$t" >/dev/null || { echo "SKIP: $t not installed"; exit 77; }; done
 [ -c /dev/net/tun ] || { echo "SKIP: no /dev/net/tun"; exit 77; }
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-export PFV="${PF_VPN:?set PF_VPN to the pf_vpn binary}"
+export PFV="${PF_CLIENT:?set PF_CLIENT to the pf_client binary}"
 BASE="$(mktemp -d)"
 trap 'rm -rf "$BASE"' EXIT
 FAILED=0
 
-# scenario <name> <server reneg-sec> <seconds> <min renegotiations> [server proto udp|tcp] [pf_vpn extra args] [drop_udp 0|1]
+# scenario <name> <server reneg-sec> <seconds> <min renegotiations> [server proto udp|tcp] [pf_client extra args] [drop_udp 0|1]
 #   the client uses --proto = server proto unless extra contains its own (fallback scenarios run --proto auto)
 scenario() {
   local name="$1" reneg="$2" secs="$3" min_reneg="$4" proto="${5:-udp}" extra="${6:-}" drop="${7:-0}" OUT="$BASE/$1"
   mkdir -p "$OUT"
   echo "=== scenario: $name (server reneg-sec=$reneg, ${secs}s, >= $min_reneg renegotiations) ==="
   if [ "$drop" = 1 ]; then export LAB_DROP_UDP=1; else unset LAB_DROP_UDP; fi
-  TUNNEL_SECONDS="$secs" PF_VPN_EXTRA="$extra" LAB_RENEG="$reneg" LAB_PROTO="$proto" \
+  TUNNEL_SECONDS="$secs" PF_CLIENT_EXTRA="$extra" LAB_RENEG="$reneg" LAB_PROTO="$proto" \
   LAB_CLIENT_CMD="bash $ROOT/tests/protocol/tunnel_client.sh" \
     bash "$ROOT/tools/interop/lab.sh" "$OUT" 12 > "$OUT/lab.out" 2>&1
-  fail() { echo "FAIL [$name]: $*"; tail -15 "$OUT/pf_vpn.log" 2>/dev/null; echo "--- server log (tail) ---"; tail -15 "$OUT/server.log" 2>/dev/null; FAILED=1; }
-  local log="$OUT/pf_vpn.log"
+  fail() { echo "FAIL [$name]: $*"; tail -15 "$OUT/vpn_run.log" 2>/dev/null; echo "--- server log (tail) ---"; tail -15 "$OUT/server.log" 2>/dev/null; FAILED=1; }
+  local log="$OUT/vpn_run.log"
 
-  [ "$(cat "$OUT/pf_vpn.exit" 2>/dev/null)" = "0" ] || { fail "pf_vpn exit code is not 0 ($(cat "$OUT/pf_vpn.exit" 2>/dev/null))"; return; }
+  [ "$(cat "$OUT/vpn_run.exit" 2>/dev/null)" = "0" ] || { fail "pf_client exit code is not 0 ($(cat "$OUT/vpn_run.exit" 2>/dev/null))"; return; }
   grep -q "tunnel UP" "$log" || { fail "tunnel did not come up"; return; }
   if [ "$proto" = tcp ]; then
-    grep -q "ESTABLISHED in .* over tcp" "$log" || { fail "pf_vpn did not use TCP"; return; }
+    grep -q "ESTABLISHED in .* over tcp" "$log" || { fail "pf_client did not use TCP"; return; }
     grep -q "TCPv4_SERVER" "$OUT/server.log" || { fail "server saw no TCP traffic"; return; }
     if grep -q "UDPv4" "$OUT/server.log"; then fail "UDP packets in a TCP scenario"; return; fi
   fi
@@ -68,5 +68,5 @@ else
   scenario tcp-tunnel-reneg 3    22 4 tcp
   command -v nft >/dev/null && scenario fallback-udp-blocked 3600 12 0 tcp "--proto auto --connect-timeout 3" 1
 fi
-if [ "$FAILED" = 0 ]; then echo "PASS: tunnel traffic crosses pf_vpn <-> unmodified OpenVPN (including renegotiations)"; exit 0; fi
+if [ "$FAILED" = 0 ]; then echo "PASS: tunnel traffic crosses pf_client <-> unmodified OpenVPN (including renegotiations)"; exit 0; fi
 exit 1

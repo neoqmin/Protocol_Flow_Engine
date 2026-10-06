@@ -34,12 +34,12 @@ if(UNIT_SRCS)
   target_compile_definitions(pf_unit_tests PRIVATE GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/regression/golden")
 endif()
 
-# PAL tests: real sockets on loopback, no root needed (Linux only; label: unit).
-if(TARGET pf_pal_linux)
-  file(GLOB PAL_SRCS CONFIGURE_DEPENDS pal/test_*.cpp)
-  if(PAL_SRCS)
-    pf_add_test(unit pf_pal_tests ${PAL_SRCS})
-    target_link_libraries(pf_pal_tests PRIVATE pf_pal_linux)
+# Platform (PAL) tests: real sockets on loopback, no root needed (Linux only; label: unit).
+if(TARGET pf_platform_linux)
+  file(GLOB PLATFORM_SRCS CONFIGURE_DEPENDS platform/test_*.cpp)
+  if(PLATFORM_SRCS)
+    pf_add_test(unit pf_platform_tests ${PLATFORM_SRCS})
+    target_link_libraries(pf_platform_tests PRIVATE pf_platform_linux)
   endif()
 endif()
 
@@ -77,12 +77,12 @@ if(PF_PROTOCOL_TESTS AND TARGET pf_client)
                    bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_tunnel.sh)
   set_tests_properties(pf_tunnel_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77 RESOURCE_LOCK pf_lab)
 endif()
-if(PF_PROTOCOL_TESTS AND TARGET pf_vpn)
-  # pf_vpn (UDP + TUN) vs an unmodified OpenVPN 2.6 server: real ping through the tunnel, with renegotiations.
-  add_test(NAME pf_vpn_tunnel_openvpn
-           COMMAND ${CMAKE_COMMAND} -E env PF_VPN=$<TARGET_FILE:pf_vpn>
-                   bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_vpn_tunnel.sh)
-  set_tests_properties(pf_vpn_tunnel_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77 RESOURCE_LOCK pf_lab)
+if(PF_PROTOCOL_TESTS AND TARGET pf_client)
+  # Transports: UDP, TCP (renegotiation) and UDP silently blocked -> automatic TCP fallback.
+  add_test(NAME pf_transport_tunnel_openvpn
+           COMMAND ${CMAKE_COMMAND} -E env PF_CLIENT=$<TARGET_FILE:pf_client>
+                   bash ${CMAKE_SOURCE_DIR}/tests/protocol/run_transport_tunnel.sh)
+  set_tests_properties(pf_transport_tunnel_openvpn PROPERTIES LABELS protocol TIMEOUT 300 SKIP_RETURN_CODE 77 RESOURCE_LOCK pf_lab)
 endif()
 if(PF_PROTOCOL_TESTS)
   file(GLOB PROTO_SRCS CONFIGURE_DEPENDS protocol/test_*.cpp)

@@ -16,11 +16,11 @@
 
 관찰: 작은 패킷에서도 ~2.4µs로 거의 일정 → **암호 연산이 아니라 호출당 고정 비용**(EVP 컨텍스트 생성·키 설정, 패킷마다 `PacketBuffer` 할당)이 지배한다. 최적화 후보(PM-3): 키별 EVP 컨텍스트 재사용, 버퍼 풀. 최적화 없이도 1.4KB에서 한쪽 방향 환산 > 900Mbit/s.
 
-## 2. 터널 처리량: 우리 `pf_vpn` vs stock OpenVPN 2.6.19 클라이언트 (`tools/interop/bench_tunnel.sh`)
+## 2. 터널 처리량: 우리 `pf_client` vs stock OpenVPN 2.6.19 클라이언트 (`tools/interop/bench_tunnel.sh`)
 
 동일한 수정 없는 OpenVPN 2.6.19 서버(유저 모드, AES-256-GCM, verb 3), 같은 호스트의 netns+veth, `iperf3` 6초.
 
-| 테스트 | pf_vpn | stock openvpn |
+| 테스트 | pf_client | stock openvpn |
 |---|---|---|
 | TCP 업로드 (client→server) | 517 Mbit/s | 552 Mbit/s |
 | TCP 다운로드 (server→client) | 752 Mbit/s | 550 Mbit/s |
@@ -28,11 +28,13 @@
 
 해석: 같은 서버·같은 호스트에서 **우리 클라이언트가 stock 클라이언트와 같은 수준**이다(업로드 약 -6%는 측정 오차 범위, 다운로드는 우리가 더 높게 측정됨 — 서버와 같은 호스트의 CPU 경합 영향 가능). 병목은 상대 서버(단일 스레드 유저 모드)일 가능성이 크다. 목표 수치(성능 요구사항)는 이 기준선을 근거로 이후 확정한다.
 
+**통합 후 재측정**(D-037, `TunnelSession`+`platform/linux`로 단일화한 `pf_client`, 같은 방법): TCP 업 479 / 다운 565 / UDP 299 Mbit/s vs stock 447 / 485 / 282 — 여전히 같은 수준(공유 VM, ±15%).
+
 ## 재현
 
 ```sh
 cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DPF_WITH_OPENSSL=ON && cmake --build build-rel
 ./build-rel/tests/pf_bench_data_path
 apt-get install -y iperf3
-sudo PF_VPN=$PWD/build-rel/pf_vpn tools/interop/bench_tunnel.sh 6   # run_interop/run_tunnel과 동시 실행 금지(같은 netns)
+sudo PF_CLIENT=$PWD/build-rel/pf_client tools/interop/bench_tunnel.sh 6   # run_interop/run_tunnel과 동시 실행 금지(같은 netns)
 ```

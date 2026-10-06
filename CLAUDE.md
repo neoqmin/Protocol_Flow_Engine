@@ -14,7 +14,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - **마일스톤(MVP / Post-MVP)**: `docs/Milestones.md`
 - Block API(결과 계약, 버퍼 모델): `docs/Block_API.md`
 - MVP 프로토콜 범위: `docs/OpenVPN_Interop_Profile.md`
-- Linux 클라이언트(A4: UDP+TUN, `pf_client`): `docs/Linux_Client_Notes.md`
+- Linux 클라이언트(A4/B: Transport·폴백·TUN, `pf_client`): `docs/Linux_Client_Notes.md`
 - Flow JSON 형식·버전 규칙: `docs/Flow_JSON_Schema_v1.md`
 - 위협 모델·키 관리·라이선스(clean-room): `docs/Threat_Model_and_Key_Management.md`
 - **전체 결정 기록: `docs/DECISIONS.md`** (@docs/DECISIONS.md)
@@ -55,18 +55,17 @@ tools/interop/lab.sh tools/interop/out 16   # 수정 없는 서버/클라이언�
 우리 클라이언트를 수정 없는 OpenVPN 서버에 붙이는 자동 상호운용 테스트(root 필요, 3 시나리오: baseline / server-reneg / client-reneg):
 ```sh
 cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build build
-ctest --test-dir build -L protocol --output-on-failure     # run_interop.sh(약 50초) + run_tunnel.sh(터널 ping, 약 50초)
+ctest --test-dir build -L protocol --output-on-failure     # run_interop.sh(약 50초) + run_tunnel.sh(약 45초) + run_transport_tunnel.sh(약 90초)
 ```
 `build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
-`build/pf_client`는 A4 Linux 클라이언트(UDP + 실제 TUN, root 필요): `pf_client --server ip:port --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--duration N]`. 터널 ping 테스트는 `tests/protocol/run_tunnel.sh`(ctest `pf_tunnel_openvpn`), 1시간 soak은 옵트인: `PF_CLIENT=build/pf_client PF_ONLY=soak PF_SOAK_SECONDS=3700 tests/protocol/run_tunnel.sh`.
-`build/pf_vpn`은 Linux 클라이언트(UDP+TUN, root): `pf_vpn --server H:P --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto --duration S --stats-interval S --mtu 1400]`. 터널 통합 테스트: `PF_VPN=build/pf_vpn tests/protocol/run_vpn_tunnel.sh` (UDP·TCP·UDP차단→TCP폴백 시나리오 5개, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 랩 네임스페이스를 쓰므로 `run_interop.sh`와 **동시에 실행 금지**.
+`build/pf_client`는 Linux 클라이언트(UDP→TCP 폴백 + 실제 TUN, root 필요): `pf_client --server ip:port --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S] [--tun-name N] [--mtu 1400] [--duration S] [--stats-interval S]`. 세션이 죽으면 종료 코드 2(재연결은 상위 감독자, D-029). 터널 테스트(ctest 라벨 `protocol`, 같은 랩 네임스페이스라 `RESOURCE_LOCK`으로 직렬화되며 **동시에 직접 실행 금지**): `run_tunnel.sh`(ping·재협상 부하, `PF_ONLY=soak PF_SOAK_SECONDS=3700` 옵트인 1시간 soak) 와 `run_transport_tunnel.sh`(UDP·TCP·UDP 무음 차단→TCP 폴백 5개 시나리오, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 둘 다 `PF_CLIENT=build/pf_client`.
 성능 기준선: `docs/Performance_Baseline.md` (`tests/performance/bench_data_path.cpp`, `tools/interop/bench_tunnel.sh`, Release 빌드 필수).
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 
 ## 코드 규칙
 
-- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), PAL(OS 의존: 소켓·TUN·이벤트 루프, 코어는 참조 금지) = `platform/<os>/`(A4 `pf_client`용) · `pal/<os>/`(`pf_vpn`용, 통합 예정), `tools/`, `tests/`, `adapters/`, `third_party/`, `patches/`
-- `tests/unit|flow|regression|pal/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
+- 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), `platform/<os>/`(PAL: 소켓·TUN·이벤트 루프 등 OS 의존, 코어는 참조 금지), `tools/`, `tests/`, `adapters/`, `third_party/`, `patches/`
+- `tests/unit|flow|regression|platform/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
 - 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존
 - Block 결과 계약: `Drop`=입력 탓(사유 필수) / `Error`=우리 실패. Action은 Continue, Decision은 Yes/No. 새 block id는 재번호 금지

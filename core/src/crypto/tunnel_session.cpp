@@ -14,17 +14,7 @@ TunnelSession::TunnelSession(ControlClient& c, KeyStore& k) : client_(c), keys_(
 
 std::unique_ptr<TunnelSession> TunnelSession::create(ControlClient& client, KeyStore& keys, std::string& error) {
     std::unique_ptr<TunnelSession> s(new TunnelSession(client, keys));
-    if (!s->aead_ || !register_data_plane_blocks(s->reg_)) { error = "data plane init failed"; return nullptr; }
-    FlowBuilder r("rx");
-    r.add("parse", kBlockParseDataV2).add("key", kBlockLookupRxKey).add("replay", kBlockReplayCheck)
-     .add("decrypt", kBlockAeadDecrypt).add("commit", kBlockReplayCommit);
-    FlowBuilder t("tx");
-    t.add("key", kBlockLookupTxKey).add("encrypt", kBlockAeadEncrypt);
-    auto rr = r.build(s->reg_);
-    auto tt = t.build(s->reg_);
-    if (!rr.ok() || !tt.ok()) { error = "data plane flow invalid"; return nullptr; }
-    s->rx_ = std::move(rr.flow);
-    s->tx_ = std::move(tt.flow);
+    if (!s->aead_ || !s->data_.init(&keys, s->aead_.get())) { error = "data plane init failed"; return nullptr; }
     return s;
 }
 
@@ -44,14 +34,12 @@ TunnelSession::RxKind TunnelSession::on_datagram(const uint8_t* data, size_t len
     if (!was_established || !keepalive_) { ++stats_.rx_before_established; return RxKind::Dropped; }
 
     PacketBuffer pkt = PacketBuffer::from_bytes(data, len);
-    FlowContext ctx;
-    ctx.packet = &pkt; ctx.keys = &keys_; ctx.aead = aead_.get();
-    if (run_flow(rx_, ctx).outcome != FlowOutcome::Completed) { ++stats_.rx_dropped; return RxKind::Dropped; }
+    const DataPath::Opened opened = data_.open(pkt);
+    if (opened.error != Error::None) { ++stats_.rx_dropped; return RxKind::Dropped; }
     keepalive_->on_received(now_ms);
 
-    if (is_ping_payload(pkt.data(), pkt.size())) { ++stats_.rx_pings; return RxKind::Keepalive; }
-    const unsigned version = pkt.size() ? (pkt.data()[0] >> 4) : 0;
-    if (version != 4 && version != 6) { ++stats_.rx_not_ip; return RxKind::Dropped; }
+    if (opened.kind == PayloadKind::Ping) { ++stats_.rx_pings; return RxKind::Keepalive; }
+    if (opened.kind != PayloadKind::Ip) { ++stats_.rx_not_ip; return RxKind::Dropped; }
     ++stats_.rx_packets;
     stats_.rx_bytes += pkt.size();
     out = std::move(pkt);
@@ -60,11 +48,7 @@ TunnelSession::RxKind TunnelSession::on_datagram(const uint8_t* data, size_t len
 
 bool TunnelSession::encrypt(const uint8_t* payload, size_t len, std::vector<uint8_t>& wire) {
     PacketBuffer pkt = PacketBuffer::from_bytes(payload, len);
-    FlowContext ctx;
-    ctx.packet = &pkt; ctx.keys = &keys_; ctx.aead = aead_.get();
-    ctx.header = OvpnHeader{OvpnOpcode::DataV2, client_.tx_key_id(), client_.push().peer_id};
-    ctx.header_valid = true;
-    if (run_flow(tx_, ctx).outcome != FlowOutcome::Completed) { ++stats_.tx_failed; return false; }
+    if (data_.seal(pkt, client_.tx_key_id(), client_.push().peer_id) != Error::None) { ++stats_.tx_failed; return false; }
     wire.assign(pkt.data(), pkt.data() + pkt.size());
     return true;
 }

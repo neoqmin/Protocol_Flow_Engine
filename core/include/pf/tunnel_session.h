@@ -5,10 +5,9 @@
 #include <string>
 #include <vector>
 
-#include "pf/blocks/data_plane_blocks.h"
 #include "pf/control_client.h"
 #include "pf/crypto/aead_provider.h"
-#include "pf/flow.h"
+#include "pf/data_path.h"
 #include "pf/keepalive.h"
 #include "pf/key_store.h"
 
@@ -64,9 +63,8 @@ private:
 
     ControlClient& client_;
     KeyStore& keys_;
-    BlockRegistry reg_;
-    Flow rx_, tx_;
     std::unique_ptr<AeadProvider> aead_;
+    DataPath data_;                               // the DATA_V2 RX/TX Flows (shared piece, see data_path.h)
     std::optional<KeepaliveTimer> keepalive_;     // created when the control channel reaches Established
     bool timed_out_ = false;
     Stats stats_;

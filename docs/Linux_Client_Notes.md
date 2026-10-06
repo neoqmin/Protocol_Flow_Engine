@@ -17,12 +17,15 @@ MVP-A의 마지막 단계: A3까지 만든 제어/데이터 채널을 **실제 U
 | 구성요소 | 위치 | 역할 |
 |---|---|---|
 | `TunnelSession` | `core/include/pf/tunnel_session.h`, `core/src/crypto/tunnel_session.cpp` | ControlClient + 데이터 Flow(RX/TX) + KeepaliveTimer를 묶는 **sans-I/O** 계층. 소켓·시계를 모른다 |
-| `pal::UdpSocket`, `pal::TunDevice` | `platform/linux/` | Linux 전용(PAL). connected UDP(논블로킹), `/dev/net/tun`(`IFF_TUN\|IFF_NO_PI`), 주소/넷마스크/MTU/up, 푸시된 라우트(ioctl) |
-| `pf_client` | `tools/pf_client/main.cpp` | `poll()` 이벤트 루프, 시그널 처리, 통계 출력 |
+| `pal::TunDevice` | `platform/linux/linux_net.*` | Linux 전용(PAL). `/dev/net/tun`(`IFF_TUN\|IFF_NO_PI`), 주소/넷마스크/MTU/up, 푸시된 라우트(ioctl) |
+| `pal::UdpTransport`, `pal::TcpStream` + `FramedTransport` | `platform/linux/`, `core/` | `Transport` 계약(패킷 단위, D-032/D-033): UDP 데이터그램, TCP는 2바이트 길이 프레이밍 |
+| `FallbackConnector` | `core/` | UDP→TCP 폴백(경로 불량의 증거가 있을 때만, D-034) |
+| `pal::VpnClient` | `platform/linux/vpn_client.*` | 폴백 연결 → `TunnelSession` ↔ TUN 의 `poll()` 이벤트 루프 |
+| `pf_client` | `tools/pf_client/main.cpp` | CLI(옵션 파싱, 시그널) — 실제 일은 `VpnClient` |
 | `tests/flow/test_tunnel_session_openssl.cpp` | | 가짜 서버로 TunnelSession 단위 검증 (변이 5개 검출 확인) |
 | `tests/protocol/run_tunnel.sh` | | 실제 OpenVPN 서버 + 네임스페이스 + 실제 TUN으로 터널 ping |
 
-코어는 PAL을 참조하지 않는다(`platform/linux`는 `pf_client`만 링크). 다른 플랫폼은 같은 `TunnelSession` 위에 자기 PAL을 붙인다(PM-1).
+코어는 PAL을 참조하지 않는다. `TunnelSession`은 내부 데이터 Flow를 `DataPath`(`core/include/pf/data_path.h`)로 구성한다. (D-037: 병렬로 구현된 `pf_vpn`/`pal/linux`를 이 구조로 통합.) 다른 플랫폼은 같은 `TunnelSession` 위에 자기 PAL을 붙인다(PM-1).
 
 ## 2. 동작 규칙
 
@@ -39,10 +42,12 @@ MVP-A의 마지막 단계: A3까지 만든 제어/데이터 채널을 **실제 U
 ```sh
 cmake -S . -B build -G Ninja -DPF_WITH_OPENSSL=ON && cmake --build build
 sudo build/pf_client --server <ip:port> --tls-crypt tc.key --ca ca.crt --cert client.crt --key client.key \
+     [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout SEC] \
      [--tun-name pf0] [--mtu 1400] [--duration SEC] [--stats-interval SEC] [--reneg-seconds N]
 ```
-root(또는 `CAP_NET_ADMIN`)가 필요하다. 자동 테스트: `ctest --test-dir build -L protocol` (pf_interop_openvpn + pf_tunnel_openvpn, 둘은 같은
-네임스페이스 이름을 쓰므로 `RESOURCE_LOCK`으로 직렬화).
+root(또는 `CAP_NET_ADMIN`)가 필요하다. `--proto auto`는 UDP를 먼저 시도하고, 응답이 없으면(방화벽이 UDP를 조용히 버리는 경우 포함) 시도 제한 시간(`--connect-timeout`, 기본 10초) 뒤 TCP로 전환한다. 서버가 응답해서 거절한 경우(인증서·AUTH_FAILED)는 전환하지 않는다.
+자동 테스트: `ctest --test-dir build -L protocol` (pf_interop_openvpn + pf_tunnel_openvpn + pf_transport_tunnel_openvpn, 셋은 같은
+네임스페이스 이름을 쓰므로 `RESOURCE_LOCK`으로 직렬화). `run_transport_tunnel.sh`: UDP·TCP·UDP 무음 차단→TCP 폴백.
 
 ## 4. 검증 결과
 

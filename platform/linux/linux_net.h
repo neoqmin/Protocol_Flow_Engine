@@ -1,29 +1,11 @@
 #pragma once
-// Linux platform layer (PAL) for the A4 client: UDP socket and TUN device. POSIX/Linux only; the core never includes this.
+// Linux platform layer (PAL) for the A4 client: the TUN device (sockets are the Transports in udp_transport.h / tcp_stream.h). POSIX/Linux only; the core never includes this.
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace pf::pal {
-
-// Connected IPv4 UDP socket (non-blocking). `fd()` is for poll().
-class UdpSocket {
-public:
-    UdpSocket() = default;
-    ~UdpSocket();
-    UdpSocket(const UdpSocket&) = delete;
-    UdpSocket& operator=(const UdpSocket&) = delete;
-
-    // "a.b.c.d:port". false + `error` on failure.
-    bool open_connected(const std::string& host_port, std::string& error);
-    int fd() const { return fd_; }
-    bool send(const uint8_t* data, size_t len);                 // false if the kernel did not accept it (drop, never blocks)
-    long recv(uint8_t* buf, size_t cap);                        // bytes, 0 = nothing available, -1 = hard error
-
-private:
-    int fd_ = -1;
-};
 
 struct TunRoute { uint32_t network, netmask, gateway; bool has_gateway; };   // host byte order
 
