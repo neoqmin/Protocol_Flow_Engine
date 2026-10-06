@@ -40,6 +40,15 @@ public:
     virtual size_t max_packet() const = 0;
     // File descriptor to poll for readability, or -1 (in-memory fakes: the caller polls recv() itself).
     virtual int poll_fd() const { return -1; }
+
+    // Stream carriers (TCP) buffer on both sides, which a poll() on the descriptor cannot see:
+    //  - has_pending_input(): a whole packet is already buffered, so recv() would succeed with no new bytes arriving.
+    //    The event loop must call recv() again (not sleep) while this is true.
+    //  - wants_write(): queued output is waiting for the socket; poll for POLLOUT and call flush() when it is ready.
+    // Datagram carriers (UDP) have neither.
+    virtual bool has_pending_input() const { return false; }
+    virtual bool wants_write() const { return false; }
+    virtual void flush() {}
 };
 
 }  // namespace pf

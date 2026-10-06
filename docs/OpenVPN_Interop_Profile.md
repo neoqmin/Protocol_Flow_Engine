@@ -14,7 +14,7 @@ D-008. MVP가 "수정 없는 OpenVPN과 wire 호환"이라는 것은 **아래 �
 | 상대 | **수정하지 않은 OpenVPN 2.6.x 서버**. 관측 기준 버전: **2.6.19** (Ubuntu 24.04 `openvpn` 패키지, OpenSSL 3.0.13) |
 | 우리 역할 | **클라이언트 전용** (서버 역할은 Post-MVP) |
 | 플랫폼 | Linux (MVP-A) |
-| 전송 | UDP (MVP-A), TCP (MVP-B) |
+| 전송 | UDP (MVP-A), TCP (MVP-B, 구현·검증됨: 패킷마다 2바이트 big-endian 길이 + 패킷, 서버 `--proto tcp-server`) |
 | 장치 | TUN (L3) |
 
 ## 2. 지원 범위 (In)
@@ -72,7 +72,7 @@ tail 8B가 키 재료의 어느 구간에서 오는지는 `[검증]`(A3).
 | TAP, 브리징 | PM-5 |
 | `auth-user-pass`, 플러그인 인증, 챌린지 | 인증서 인증만 |
 | IPv6 터널 옵션, 고급 라우팅 옵션 | 필요 시 추가 |
-| TCP | MVP-B |
+| TCP | MVP-B ✅ (B2: 수정 없는 2.6.19 `tcp-server`와 터널·재협상 상호운용) |
 | DCO 연동 | PM-8 |
 | 프록시/Relay | PM-2 |
 

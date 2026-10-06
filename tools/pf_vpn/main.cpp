@@ -2,7 +2,7 @@
 //
 //   pf_vpn --server 203.0.113.1:1194 --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key
 //          [--dev pfvpn0] [--mtu 1400] [--timeout 30] [--duration SECONDS] [--stats-interval SECONDS]
-//          [--reneg-seconds N] [--no-routes]
+//          [--reneg-seconds N] [--no-routes] [--proto udp|tcp]
 //
 // Runs until SIGINT/SIGTERM or --duration. Exit codes: 0 ok, 2 control channel failed, 4 usage/config,
 // 5 ping-restart (server silent), 6 TUN device error.
@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 
+#include "tcp_stream.h"
 #include "vpn_client.h"
 
 namespace {
@@ -35,7 +36,7 @@ bool read_file(const std::string& path, std::string& out) {
 int main(int argc, char** argv) {
     using namespace pf;
     pal::VpnOptions opt;
-    std::string server, tc, ca, cert, key;
+    std::string server, tc, ca, cert, key, proto = "udp";
     int reneg_s = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
@@ -47,6 +48,7 @@ int main(int argc, char** argv) {
         else if (a == "--cert") val(cert);
         else if (a == "--key") val(key);
         else if (a == "--dev") val(opt.dev_name);
+        else if (a == "--proto") val(proto);
         else if (a == "--mtu") num(opt.mtu);
         else if (a == "--timeout") num(opt.connect_timeout_s);
         else if (a == "--duration") num(opt.duration_s);
@@ -66,6 +68,7 @@ int main(int argc, char** argv) {
         return 4;
     }
     opt.server.sin_port = htons(static_cast<uint16_t>(std::atoi(server.substr(colon + 1).c_str())));
+    if (proto != "udp" && proto != "tcp") { std::fprintf(stderr, "--proto must be udp or tcp\n"); return 4; }
     if (opt.mtu < 576 || opt.mtu > 1500) { std::fprintf(stderr, "--mtu must be 576..1500\n"); return 4; }
 
     std::string tc_text;
@@ -81,6 +84,13 @@ int main(int argc, char** argv) {
     sa.sa_handler = on_signal;
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
+
+    if (proto == "tcp") {
+        std::string terr;
+        opt.transport = pal::open_tcp_transport(opt.server, static_cast<uint32_t>(opt.connect_timeout_s) * 1000u, terr);
+        if (!opt.transport) { std::fprintf(stderr, "pf_vpn: tcp connect failed: %s\n", terr.c_str()); return 2; }
+        std::printf("transport: tcp connected\n");
+    }
 
     pal::VpnClient vpn;
     const pal::VpnExit rc = vpn.run(std::move(opt), g_stop);

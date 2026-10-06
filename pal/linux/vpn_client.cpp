@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -68,10 +69,13 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
         }
         if (client->state() == ControlClient::State::Established) break;
         if (now > t0 + static_cast<uint64_t>(opts.connect_timeout_s) * 1000) { error_ = "control channel timeout"; return VpnExit::ControlFailed; }
+        transport->flush();
         int wait = 100;
         if (auto w = client->next_wakeup_ms()) wait = static_cast<int>(std::min<uint64_t>(100, *w > now ? *w - now : 0));
-        pollfd p{fd, POLLIN, 0};
-        if (poll(&p, 1, wait) > 0 && (p.revents & POLLIN)) {
+        if (transport->has_pending_input()) wait = 0;
+        pollfd p{fd, static_cast<short>(POLLIN | (transport->wants_write() ? POLLOUT : 0)), 0};
+        const int pr_ = poll(&p, 1, wait);
+        if ((pr_ > 0 && (p.revents & (POLLIN | POLLHUP | POLLERR))) || transport->has_pending_input()) {
             uint8_t buf[kMaxDatagram];
             const RecvResult rr = transport->recv(buf, sizeof buf);
             if (rr.status == TransportStatus::Ok) (void)client->on_datagram(buf, rr.len, now_ms(), unix_now());
@@ -153,10 +157,13 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
         if (auto w = client->next_wakeup_ms()) wait = std::min<uint64_t>(wait, *w > now ? *w - now : 0);
         if (auto d = ka.next_deadline_ms()) wait = std::min<uint64_t>(wait, *d > now ? *d - now : 0);
         wait = std::min<uint64_t>(wait, end > now ? end - now : 0);
-        pollfd fds[2] = {{fd, POLLIN, 0}, {tun.fd(), POLLIN, 0}};
-        if (poll(fds, 2, static_cast<int>(wait)) <= 0) continue;
-
-        if (fds[0].revents & POLLIN) {
+        transport->flush();
+        if (transport->has_pending_input()) wait = 0;
+        pollfd fds[2] = {{fd, static_cast<short>(POLLIN | (transport->wants_write() ? POLLOUT : 0)), 0}, {tun.fd(), POLLIN, 0}};
+        const int ready = poll(fds, 2, static_cast<int>(wait));
+        if (ready < 0 && errno != EINTR) { error_ = "poll failed"; result = VpnExit::DeviceError; break; }
+        if (ready <= 0) fds[0].revents = fds[1].revents = 0;
+        if ((fds[0].revents & (POLLIN | POLLHUP | POLLERR)) || transport->has_pending_input()) {
             for (int i = 0; i < 64; ++i) {                              // drain, bounded so timers still run
                 uint8_t buf[kMaxDatagram];
                 const RecvResult rr = transport->recv(buf, sizeof buf);

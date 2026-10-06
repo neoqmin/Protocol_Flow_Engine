@@ -13,6 +13,7 @@ set -euo pipefail
 OUT="${1:-tools/interop/out}"; SECS="${2:-14}"
 shift $(( $# > 2 ? 2 : $# )) || true
 PORT=11940; NS=pfct; HOST_IP=10.99.0.1; NS_IP=10.99.0.2
+PROTO="${LAB_PROTO:-udp}"     # udp | tcp (server side: tcp-server)
 RENEG="${LAB_RENEG:-6}"        # seconds; large value keeps the session free of renegotiations
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"
 
@@ -40,7 +41,7 @@ cleanup() {
 trap cleanup EXIT
 cleanup_pre() { ip netns del $NS 2>/dev/null || true; ip link del pfv0 2>/dev/null || true; }
 cleanup_pre
-export OUT HOST_IP PORT
+export OUT HOST_IP PORT PROTO
 
 ip netns add $NS
 ip link add pfv0 type veth peer name pfv1
@@ -50,14 +51,14 @@ ip netns exec $NS ip addr add $NS_IP/24 dev pfv1
 ip netns exec $NS ip link set pfv1 up; ip netns exec $NS ip link set lo up
 
 # Server: tls-crypt, AES-256-GCM only, TLS>=1.3, user mode (no DCO).
-openvpn --dev pfs0 --dev-type tun --proto udp --local $HOST_IP --lport $PORT \
+openvpn --dev pfs0 --dev-type tun --proto $([ "$PROTO" = tcp ] && echo tcp-server || echo udp) --local $HOST_IP --lport $PORT \
   --server 10.77.0.0 255.255.255.0 --topology subnet \
   --cipher AES-256-GCM --data-ciphers AES-256-GCM --tls-crypt tc.key \
   --ca ca.crt --cert server.crt --key server.key --dh none \
   --tls-version-min 1.3 --remote-cert-tls client --verb 7 --reneg-sec "$RENEG" \
   --keepalive 2 8 --disable-dco --log server.log "$@" & SPID=$!
 sleep 1
-tcpdump -i pfv0 -n -U -w capture.pcap "udp port $PORT" >/dev/null 2>&1 & TPID=$!
+tcpdump -i pfv0 -n -U -w capture.pcap "$PROTO port $PORT" >/dev/null 2>&1 & TPID=$!
 sleep 0.5
 if [ -n "${LAB_CLIENT_CMD:-}" ]; then
   # Run an alternative client (e.g. pf_connect) inside the namespace instead of the stock OpenVPN client.
@@ -71,7 +72,7 @@ if [ -n "${LAB_CLIENT_CMD:-}" ]; then
   echo "pcap packets: $(tcpdump -nr capture.pcap 2>/dev/null | wc -l) ($OUT/capture.pcap)"
   exit 0
 fi
-ip netns exec $NS openvpn --client --dev pfc0 --dev-type tun --proto udp \
+ip netns exec $NS openvpn --client --dev pfc0 --dev-type tun --proto $([ "$PROTO" = tcp ] && echo tcp-client || echo udp) \
   --remote $HOST_IP $PORT --nobind --cipher AES-256-GCM --data-ciphers AES-256-GCM \
   --tls-crypt tc.key --ca ca.crt --cert client.crt --key client.key \
   --tls-version-min 1.3 --remote-cert-tls server --verb 7 --reneg-sec 6 \

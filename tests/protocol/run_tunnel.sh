@@ -4,7 +4,7 @@
 # Needs root (netns, TUN), openvpn, tcpdump, iproute2, ping, openssl. Skips (77) when unavailable.
 #   PF_VPN=<path to pf_vpn> tests/protocol/run_tunnel.sh
 # Soak / single scenario (A4 exit criterion is 1 hour, default reneg-sec 3600):
-#   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_VPN=... tests/protocol/run_tunnel.sh
+#   TUNNEL_PROTO=tcp selects TCP.   TUNNEL_SECONDS=3700 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 PF_VPN=... tests/protocol/run_tunnel.sh
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "SKIP: needs root"; exit 77; }
 for t in openvpn tcpdump ip ping openssl; do command -v "$t" >/dev/null || { echo "SKIP: $t not installed"; exit 77; }; done
@@ -15,12 +15,12 @@ BASE="$(mktemp -d)"
 trap 'rm -rf "$BASE"' EXIT
 FAILED=0
 
-# scenario <name> <server reneg-sec> <seconds> <min renegotiations> [pf_vpn extra args]
+# scenario <name> <server reneg-sec> <seconds> <min renegotiations> [proto udp|tcp]
 scenario() {
-  local name="$1" reneg="$2" secs="$3" min_reneg="$4" extra="${5:-}" OUT="$BASE/$1"
+  local name="$1" reneg="$2" secs="$3" min_reneg="$4" proto="${5:-udp}" extra="" OUT="$BASE/$1"
   mkdir -p "$OUT"
   echo "=== scenario: $name (server reneg-sec=$reneg, ${secs}s, >= $min_reneg renegotiations) ==="
-  TUNNEL_SECONDS="$secs" PF_VPN_EXTRA="$extra" LAB_RENEG="$reneg" \
+  TUNNEL_SECONDS="$secs" PF_VPN_EXTRA="$extra" LAB_RENEG="$reneg" LAB_PROTO="$proto" \
   LAB_CLIENT_CMD="bash $ROOT/tests/protocol/tunnel_client.sh" \
     bash "$ROOT/tools/interop/lab.sh" "$OUT" 12 > "$OUT/lab.out" 2>&1
   fail() { echo "FAIL [$name]: $*"; tail -15 "$OUT/pf_vpn.log" 2>/dev/null; echo "--- server log (tail) ---"; tail -15 "$OUT/server.log" 2>/dev/null; FAILED=1; }
@@ -28,6 +28,11 @@ scenario() {
 
   [ "$(cat "$OUT/pf_vpn.exit" 2>/dev/null)" = "0" ] || { fail "pf_vpn exit code is not 0 ($(cat "$OUT/pf_vpn.exit" 2>/dev/null))"; return; }
   grep -q "tunnel UP" "$log" || { fail "tunnel did not come up"; return; }
+  if [ "$proto" = tcp ]; then
+    grep -q "transport: tcp connected" "$log" || { fail "pf_vpn did not use TCP"; return; }
+    grep -q "TCPv4_SERVER" "$OUT/server.log" || { fail "server saw no TCP traffic"; return; }
+    if grep -q "UDPv4" "$OUT/server.log"; then fail "UDP packets in a TCP scenario"; return; fi
+  fi
   grep -q "10.77.0.2" "$OUT/tun_addr.txt" || { fail "TUN device did not get the pushed address"; return; }
   for p in ping_small ping_large; do
     grep -Eq " 0% packet loss" "$OUT/$p.log" || { fail "$p: packet loss through the tunnel"; cat "$OUT/$p.log"; return; }
@@ -48,10 +53,12 @@ scenario() {
 }
 
 if [ -n "${TUNNEL_SECONDS:-}" ]; then
-  scenario custom "${TUNNEL_RENEG:-3600}" "$TUNNEL_SECONDS" "${TUNNEL_EXPECT_RENEG:-0}"
+  scenario custom "${TUNNEL_RENEG:-3600}" "$TUNNEL_SECONDS" "${TUNNEL_EXPECT_RENEG:-0}" "${TUNNEL_PROTO:-udp}"
 else
   scenario tunnel       3600 10 0
   scenario tunnel-reneg 3    22 4
+  scenario tcp-tunnel       3600 10 0 tcp
+  scenario tcp-tunnel-reneg 3    22 4 tcp
 fi
 if [ "$FAILED" = 0 ]; then echo "PASS: tunnel traffic crosses pf_vpn <-> unmodified OpenVPN (including renegotiations)"; exit 0; fi
 exit 1

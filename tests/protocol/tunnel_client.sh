@@ -5,7 +5,7 @@
 set -u
 SECS="${TUNNEL_SECONDS:-10}"
 "$PFV" --server "$HOST_IP:$PORT" --tls-crypt "$OUT/tc.key" --ca "$OUT/ca.crt" --cert "$OUT/client.crt" --key "$OUT/client.key" \
-  --dev pfvpn0 --duration "$SECS" --stats-interval 10 ${PF_VPN_EXTRA:-} > "$OUT/pf_vpn.log" 2>&1 &
+  --proto "${PROTO:-udp}" --dev pfvpn0 --duration "$SECS" --stats-interval 10 ${PF_VPN_EXTRA:-} > "$OUT/pf_vpn.log" 2>&1 &
 VPID=$!
 for _ in $(seq 1 100); do grep -q "tunnel UP" "$OUT/pf_vpn.log" && break; kill -0 $VPID 2>/dev/null || break; sleep 0.2; done
 if grep -q "tunnel UP" "$OUT/pf_vpn.log"; then
