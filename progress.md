@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: PM-4 F-1 State Machine S0~S4 완료 — D-041)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1 State Machine S0~S4 — D-041, F-3 Trace S5 — D-042)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -20,7 +20,8 @@
 - [x] **Post-MVP 계획 정리**: NAT Traversal 계획을 PM-2 참고 계획으로 채택하고 적용안 작성([docs/PM2_NAT_Traversal_Scope.md](docs/PM2_NAT_Traversal_Scope.md), D-039), Flow 모델 확장 계획(순환은 State Machine 층에만, [plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md](plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md), D-040), 위협 모델 §8, 참고 자료 §10
 - [x] **다음 Post-MVP 진입 항목 선택** → PM-4 F-1(State Machine)부터
 - [x] **PM-4 / F-1 S0~S4** — State Machine v1: `MachineRunner`·Validator·`protocol-machine` v1·`KeepaliveTimer` 동등성 (D-041, [docs/Machine_JSON_Schema_v1.md](docs/Machine_JSON_Schema_v1.md))
-- [ ] **다음**: F-1 후속(S5 Trace / S6 Context 일반화) 또는 PM-4의 나머지(DSL/IR), 런타임에서 `KeepaliveTimer`를 Machine으로 교체할지 결정
+- [x] **F-3 / S5 Trace** — `TraceSink`/`TraceRing`, `run_flow`·`MachineRunner` 기록, JSON Lines, `pf_client --trace` (D-042)
+- [ ] **다음**: S6 `FlowContext` 일반화, PM-4의 나머지(DSL/IR), 또는 런타임에서 `KeepaliveTimer`를 Machine으로 교체할지 결정(이제 trace로 관찰 가능)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -209,7 +210,14 @@
   - [x] 변이 12개(Validator 규칙 6, 런타임 6) 모두 검출(1개는 테스트 보강 후), ASan/UBSan(`-Werror`) 통과
   - [ ] 후속: `spawn`/변수/Decision guard(첫 사용처에서), 난수 주입(S7), 런타임에서 `KeepaliveTimer` 교체 여부
 - [ ] F-2 `FlowContext` 일반화 (S6: 프로토콜별 슬롯, `consumes`/`produces`, C3 동등성·성능 기준선 유지)
-- [ ] F-3 Packet / Transition Trace (S5: 페이로드·키 비기록, 링 버퍼, JSON Lines)
+- [x] F-3 Packet / Transition Trace v1 (S5, D-042)
+  - [x] `TraceSink` + 고정 크기 `TraceRing`(할당 1회, 덮어쓰기 개수), 이름 복사·UTF-8 경계 안전 절단, JSON Lines(종류별 필드)
+  - [x] `run_flow` 노드/종료 기록(끈 경로는 별도 인스턴스라 검사 없음), `MachineRunner` 이벤트·전이·출력·종료 기록(핸들러 Flow 포함, 시계 전달)
+  - [x] 테스트: 링·JSON 3개, Flow/Machine 기록 순서·내용 5개(무작위 차등으로 trace가 동작을 바꾸지 않음 확인), **실제 OpenVPN 골든 17개로 키·nonce·평문 비노출** 1개. 변이 8개 모두 검출(1개는 테스트 보강 후)
+  - [x] 성능: 끔 ≈ 18ns/8노드 실행(변경 전과 같음), 켬 ≈ 200ns, DataPath 벤치 변화 없음 (`docs/Performance_Baseline.md` §3)
+  - [x] `pf_client --trace FILE [--trace-records N]`, `run_tunnel.sh` ping 시나리오에서 수정 없는 OpenVPN 2.6.19 상대로 검증(216개 기록, RX/TX 완료)
+  - [x] `fuzz_flow_load`·`fuzz_machine_load`에 trace 불변식 추가, 각 80초 무결함, ASan/UBSan 통과
+  - [ ] 후속: 주소 `meta`·마스킹(PM-2b), MCP Resource(PM-7), 에디터 표시(PM-6)
 
 ---
 

@@ -25,6 +25,7 @@ void TunnelSession::maybe_start_keepalive(uint64_t now_ms) {
 }
 
 TunnelSession::RxKind TunnelSession::on_datagram(const uint8_t* data, size_t len, uint64_t now_ms, uint32_t unix_s, PacketBuffer& out) {
+    stamp(now_ms);
     const bool was_established = client_.state() == ControlClient::State::Established;
     if (client_.on_datagram(data, len, now_ms, unix_s)) {
         maybe_start_keepalive(now_ms);
@@ -54,6 +55,7 @@ bool TunnelSession::encrypt(const uint8_t* payload, size_t len, std::vector<uint
 }
 
 bool TunnelSession::encapsulate(const uint8_t* ip, size_t len, uint64_t now_ms, std::vector<uint8_t>& wire) {
+    stamp(now_ms);
     if (!keepalive_) { ++stats_.tx_before_established; return false; }
     if (len == 0 || len > kMaxIpPacket) { ++stats_.tx_failed; return false; }
     if (!encrypt(ip, len, wire)) return false;
@@ -64,6 +66,7 @@ bool TunnelSession::encapsulate(const uint8_t* ip, size_t len, uint64_t now_ms, 
 }
 
 std::vector<std::vector<uint8_t>> TunnelSession::poll(uint64_t now_ms, uint32_t unix_s) {
+    stamp(now_ms);
     std::vector<std::vector<uint8_t>> out = client_.poll(now_ms, unix_s);
     maybe_start_keepalive(now_ms);
     if (!keepalive_) return out;

@@ -97,7 +97,7 @@ M0 하드닝 ✅
 |---|---|---|---|
 | F-1 ✅ v1 | State Machine 층 (순환·타이머·상태, sans-I/O 런타임, Machine Validator, `protocol-machine` v1 — `docs/Machine_JSON_Schema_v1.md`, D-041) | PM-4(정본), PM-2b, PM-6, PM-7 | 계획 S1~S4 (`KeepaliveTimer` 동등성 포함) — 완료 |
 | F-2 | `FlowContext` 일반화 (프로토콜별 슬롯, 블록 `consumes`/`produces` 선언) | PM-2b(STUN), PM-9 | C3 골든 동등성 유지, 데이터 경로 기준선 ±15% 이내, ASan/UBSan |
-| F-3 | Packet / Transition Trace (페이로드·키 비기록 기본, 링 버퍼, JSON Lines) | PM-2b(NAT 랩), PM-6(에디터 디버깅), PM-7(MCP Resource) | 비공개 규칙 테스트, trace 끔 상태 성능 기준선 유지 |
+| F-3 ✅ v1 | Packet / Transition Trace (페이로드·키 비기록 기본, 링 버퍼, JSON Lines — `core/include/pf/trace.h`, D-042) | PM-2b(NAT 랩), PM-6(에디터 디버깅), PM-7(MCP Resource) | 비공개 규칙 테스트, trace 끔 상태 성능 기준선 유지 — 완료 |
 
 ## 진행 규칙
 

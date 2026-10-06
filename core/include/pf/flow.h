@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "pf/block.h"
+#include "pf/trace.h"
 
 namespace pf {
 
@@ -93,7 +94,9 @@ inline constexpr size_t kDefaultMaxSteps = 1024;
 
 // Runs one packet through the flow. Resets ctx.error first. Never throws.
 // Enforces the BlockResult contract and the step budget (runtime loop guard).
+// trace: optional sink (pf/trace.h) receiving one Node record per block and one FlowEnd record; nullptr = no cost
+// beyond a pointer test per step.
 FlowResult run_flow(const Flow& flow, FlowContext& ctx, FlowStats* stats = nullptr,
-                    size_t max_steps = kDefaultMaxSteps);
+                    size_t max_steps = kDefaultMaxSteps, TraceSink* trace = nullptr);
 
 }  // namespace pf

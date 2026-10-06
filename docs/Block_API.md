@@ -8,7 +8,7 @@
 ```text
 BlockRegistry  : BlockDescriptor{id, name, type, execute} 등록/조회 (id·name 유일)
 FlowBuilder    : 정적 Flow 정의 → build(registry) → 검증된 불변 Flow
-run_flow       : 패킷 1개를 Flow로 실행 → FlowResult{outcome, error, steps, last_node}
+run_flow       : 패킷 1개를 Flow로 실행 → FlowResult{outcome, error, steps, last_node}. 선택적 TraceSink로 노드별 기록(F-3, D-042, pf/trace.h)
 FlowContext    : Block이 공유하는 패킷별 컨텍스트 (패킷 포인터, 헤더, KeyRef, flags, error)
 PacketBuffer   : headroom/tailroom을 가진 단일 소유 버퍼 (zero-copy 캡슐화/해제)
 ```

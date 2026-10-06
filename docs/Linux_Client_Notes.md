@@ -43,8 +43,10 @@ MVP-A의 마지막 단계: A3까지 만든 제어/데이터 채널을 **실제 U
 cmake -S . -B build -G Ninja -DPF_WITH_OPENSSL=ON && cmake --build build
 sudo build/pf_client --server <ip:port> --tls-crypt tc.key --ca ca.crt --cert client.crt --key client.key \
      [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout SEC] \
-     [--tun-name pf0] [--mtu 1400] [--duration SEC] [--stats-interval SEC] [--reneg-seconds N]
+     [--tun-name pf0] [--mtu 1400] [--duration SEC] [--stats-interval SEC] [--reneg-seconds N] \
+     [--trace FILE] [--trace-records N]
 ```
+`--trace`는 데이터 경로(DATA_V2 RX/TX Flow)의 최근 N개(기본 4096) trace 기록을 메모리에 두었다가 종료할 때 FILE에 JSON Lines로 쓴다. 기록 내용은 블록 이름, 결과, 오류 사유, 패킷 길이뿐이고 패킷 바이트나 키는 남지 않는다(D-042, `core/include/pf/trace.h`). 형식 예: `{"seq":3,"t":1000,"kind":"node","flow":"data_rx","node":"decrypt","block":9,"result":"Drop","error":"AuthFailed","len":120}`.
 root(또는 `CAP_NET_ADMIN`)가 필요하다. `--proto auto`는 UDP를 먼저 시도하고, 응답이 없으면(방화벽이 UDP를 조용히 버리는 경우 포함) 시도 제한 시간(`--connect-timeout`, 기본 10초) 뒤 TCP로 전환한다. 서버가 응답해서 거절한 경우(인증서·AUTH_FAILED)는 전환하지 않는다.
 자동 테스트: `ctest --test-dir build -L protocol` (pf_interop_openvpn + pf_tunnel_openvpn + pf_transport_tunnel_openvpn, 셋은 같은
 네임스페이스 이름을 쓰므로 `RESOURCE_LOCK`으로 직렬화). `run_transport_tunnel.sh`: UDP·TCP·UDP 무음 차단→TCP 폴백.

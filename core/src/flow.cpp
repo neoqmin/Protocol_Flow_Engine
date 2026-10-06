@@ -1,5 +1,7 @@
 #include "pf/flow.h"
 
+#include "pf/packet_buffer.h"
+
 #include <unordered_map>
 
 namespace pf {
@@ -154,9 +156,34 @@ bool allowed(BlockType t, BlockResult r) {
     return false;
 }
 
-}  // namespace
+void trace_end(TraceSink* trace, const Flow& flow, const FlowResult& r) {
+    TraceRecord t;
+    t.kind = TraceKind::FlowEnd;
+    t.t_ms = trace->now_ms;
+    t.scope = flow.name();
+    if (r.last_node != kNoNode) t.name = flow.node(r.last_node).label;
+    t.result = static_cast<uint8_t>(r.outcome);
+    t.error = r.error;
+    t.value = static_cast<uint32_t>(r.steps);
+    trace->record(t);
+}
 
-FlowResult run_flow(const Flow& flow, FlowContext& ctx, FlowStats* stats, size_t max_steps) {
+void trace_node(TraceSink* trace, const Flow& flow, const FlowNode& n, BlockResult r, const FlowContext& ctx) {
+    TraceRecord t;
+    t.kind = TraceKind::Node;
+    t.t_ms = trace->now_ms;
+    t.scope = flow.name();
+    t.name = n.label;
+    t.block = n.block;
+    t.result = static_cast<uint8_t>(r);
+    t.error = ctx.error;
+    t.value = ctx.packet ? static_cast<uint32_t>(ctx.packet->size()) : 0;     // a length, never the bytes
+    trace->record(t);
+}
+
+// Two instantiations so the untraced path (the data plane's) has no trace test at all.
+template <bool kTraced>
+FlowResult execute(const Flow& flow, FlowContext& ctx, FlowStats* stats, size_t max_steps, TraceSink* trace) {
     ctx.error = Error::None;
     if (flow.node_count() == 0)
         return finish(stats, ctx, FlowOutcome::Errored, Error::FlowInvalid, 0, kNoNode);
@@ -167,6 +194,7 @@ FlowResult run_flow(const Flow& flow, FlowContext& ctx, FlowStats* stats, size_t
         const FlowNode& n = flow.node(i);
         ++steps;
         const BlockResult r = n.execute(ctx);
+        if constexpr (kTraced) trace_node(trace, flow, n, r, ctx);
         if (!allowed(n.type, r))
             return finish(stats, ctx, FlowOutcome::Errored, Error::Internal, steps, i);
 
@@ -186,6 +214,15 @@ FlowResult run_flow(const Flow& flow, FlowContext& ctx, FlowStats* stats, size_t
         if (next == kNoNode) return finish(stats, ctx, FlowOutcome::Completed, Error::None, steps, i);
         i = next;
     }
+}
+
+}  // namespace
+
+FlowResult run_flow(const Flow& flow, FlowContext& ctx, FlowStats* stats, size_t max_steps, TraceSink* trace) {
+    if (!trace) return execute<false>(flow, ctx, stats, max_steps, nullptr);
+    const FlowResult r = execute<true>(flow, ctx, stats, max_steps, trace);
+    trace_end(trace, flow, r);
+    return r;
 }
 
 }  // namespace pf

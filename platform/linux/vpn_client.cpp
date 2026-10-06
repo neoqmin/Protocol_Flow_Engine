@@ -117,6 +117,7 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
     if (!pr.has_ifconfig) { error_ = "server pushed no ifconfig"; return VpnExit::ConfigError; }
     auto session = TunnelSession::create(*client, keys, err);
     if (!session) { error_ = "session: " + err; return VpnExit::ConfigError; }
+    session->set_trace(opts.trace);
     std::printf("control channel ESTABLISHED in %llu ms over %s\n", static_cast<unsigned long long>(now_ms() - t0), kind_name(kind_));
 
     // --- phase 2: TUN, only now that the server pushed an address ------------------------------------------------

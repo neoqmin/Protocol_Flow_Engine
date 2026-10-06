@@ -448,10 +448,27 @@ std::optional<MachineRunner> MachineRunner::create(const Machine& m, const Machi
     return r;
 }
 
+void MachineRunner::trace(TraceKind kind, std::string_view name, size_t state, std::string_view to, uint8_t result, Error error,
+                          uint32_t value) {
+    if (!trace_) return;
+    TraceRecord r;
+    r.kind = kind;
+    r.t_ms = trace_->now_ms;
+    r.scope = m_->name_;
+    r.name = name;
+    r.state = m_->states_[state];
+    r.to = to;
+    r.result = result;
+    r.error = error;
+    r.value = value;
+    trace_->record(r);
+}
+
 void MachineRunner::fail(Error e) {
     status_ = MachineStatus::Failed;
     error_ = e;
     for (auto& d : deadlines_) d.reset();
+    trace(TraceKind::MachineEnd, {}, state_, {}, static_cast<uint8_t>(status_), e);
 }
 
 std::optional<size_t> MachineRunner::select(size_t event) const {
@@ -472,7 +489,7 @@ bool MachineRunner::take(size_t ti, FlowContext& ctx, uint64_t now_ms, MachineSt
     const auto& t = m_->transitions_[ti];
     if (t.flow) {
         ++step.flow_runs;
-        const FlowResult fr = run_flow(m_->flows_[*t.flow], ctx);
+        const FlowResult fr = run_flow(m_->flows_[*t.flow], ctx, nullptr, kDefaultMaxSteps, trace_);
         if (fr.outcome == FlowOutcome::Dropped) { step.dropped = true; step.error = fr.error; return false; }
         if (fr.outcome == FlowOutcome::Errored) { fail(fr.error); step.error = fr.error; return false; }
     }
@@ -487,21 +504,28 @@ bool MachineRunner::take(size_t ti, FlowContext& ctx, uint64_t now_ms, MachineSt
                 else deadlines_[a.index] = now_ms + duration_[a.index];
                 break;
             case Machine::ActionKind::Cancel: deadlines_[a.index].reset(); break;
-            case Machine::ActionKind::Emit: step.emits.push_back(a.index); break;
+            case Machine::ActionKind::Emit:
+                step.emits.push_back(a.index);
+                trace(TraceKind::Emit, m_->outputs_[a.index], state_);
+                break;
         }
     }
     step.transitions.push_back(ti);
+    trace(TraceKind::Transition, m_->events_[t.event], t.from, m_->states_[t.to], 0, Error::None, static_cast<uint32_t>(ti));
     state_ = t.to;
     if (m_->final_[state_] != MachineStatus::Running) {
         status_ = m_->final_[state_];
         for (auto& d : deadlines_) d.reset();
+        trace(TraceKind::MachineEnd, {}, state_, {}, static_cast<uint8_t>(status_));
     }
     return true;
 }
 
 void MachineRunner::dispatch(size_t event, FlowContext& ctx, uint64_t now_ms, MachineStep& step) {
-    if (status_ == MachineStatus::Running && event != m_->auto_event_) {
-        if (const auto t = select(event)) {
+    if (event != m_->auto_event_) {
+        const auto t = status_ == MachineStatus::Running ? select(event) : std::nullopt;
+        trace(TraceKind::Event, m_->events_[event], state_, {}, static_cast<uint8_t>(t ? TraceEvent::Selected : TraceEvent::Ignored));
+        if (t) {
             step.handled = true;
             if (!take(*t, ctx, now_ms, step)) { step.status = status_; return; }
         }
@@ -517,6 +541,7 @@ void MachineRunner::dispatch(size_t event, FlowContext& ctx, uint64_t now_ms, Ma
 
 MachineStep MachineRunner::start(FlowContext& ctx, uint64_t now_ms) {
     MachineStep step;
+    stamp(now_ms);
     if (started_) { step.error = Error::Internal; step.status = status_; return step; }
     started_ = true;
     dispatch(m_->auto_event_, ctx, now_ms, step);
@@ -526,9 +551,12 @@ MachineStep MachineRunner::start(FlowContext& ctx, uint64_t now_ms) {
 MachineStep MachineRunner::on_event(size_t event, FlowContext& ctx, uint64_t now_ms) {
     MachineStep step;
     step.status = status_;
+    stamp(now_ms);
     const bool timer_event = std::any_of(m_->timer_.begin(), m_->timer_.end(), [&](const auto& t) { return t.event == event; });
     if (!started_ || event >= m_->events_.size() || event == m_->auto_event_ || timer_event) {
         step.error = Error::Internal;             // caller bug: not started, or not a packet/command event
+        trace(TraceKind::Event, event < m_->events_.size() ? std::string_view(m_->events_[event]) : std::string_view(), state_, {},
+              static_cast<uint8_t>(TraceEvent::Rejected), Error::Internal);
         return step;
     }
     dispatch(event, ctx, now_ms, step);
@@ -537,6 +565,7 @@ MachineStep MachineRunner::on_event(size_t event, FlowContext& ctx, uint64_t now
 
 std::optional<MachineStep> MachineRunner::poll_timer(FlowContext& ctx, uint64_t now_ms) {
     if (!started_ || status_ != MachineStatus::Running) return std::nullopt;
+    stamp(now_ms);
     std::optional<size_t> due;
     for (size_t i = 0; i < deadlines_.size(); ++i)
         if (deadlines_[i] && *deadlines_[i] <= now_ms && (!due || *deadlines_[i] < *deadlines_[*due])) due = i;

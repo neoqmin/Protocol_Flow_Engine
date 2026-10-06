@@ -4,7 +4,11 @@
 //   pf_client --server 10.99.0.1:11940 --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key
 //             [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S]
 //             [--tun-name pf0] [--mtu 1400] [--duration S] [--stats-interval S] [--reneg-seconds N] [--no-routes]
+//             [--trace FILE] [--trace-records N]
 //
+// --trace keeps the last N (default 4096) data-plane trace records in memory (every block of the DATA_V2 RX/TX Flows,
+// how each packet ended; names, result codes and lengths only - never packet bytes or keys, pf/trace.h) and writes
+// them to FILE as JSON Lines when the client exits.
 // --proto auto tries UDP first and falls back to TCP when UDP is blocked (docs/Linux_Client_Notes.md).
 // The TUN device is created and configured (address, MTU, pushed routes) once the server's PUSH_REPLY arrives, and
 // disappears when the process exits. Runs until SIGINT/SIGTERM, --duration, or the session dies.
@@ -19,9 +23,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <string>
 
+#include "pf/trace.h"
 #include "vpn_client.h"
 
 namespace {
@@ -42,7 +48,8 @@ int main(int argc, char** argv) {
     using namespace pf;
     pal::VpnOptions opt;
     std::string server = "10.99.0.1:11940", tc, ca, cert, key, proto = "udp";
-    int tcp_port = 0, connect_timeout_s = 10, reneg_s = 0, mtu = 1400;
+    std::string trace_file;
+    int tcp_port = 0, connect_timeout_s = 10, reneg_s = 0, mtu = 1400, trace_records = 4096;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         auto val = [&](std::string& dst) { if (i + 1 < argc) dst = argv[++i]; };
@@ -61,6 +68,8 @@ int main(int argc, char** argv) {
         else if (a == "--stats-interval") num(opt.stats_interval_s);
         else if (a == "--reneg-seconds") num(reneg_s);
         else if (a == "--no-routes") opt.install_routes = false;
+        else if (a == "--trace") val(trace_file);
+        else if (a == "--trace-records") num(trace_records);
         else { std::fprintf(stderr, "unknown argument: %s\n", a.c_str()); return 4; }
     }
     if (tc.empty() || ca.empty() || cert.empty() || key.empty()) { std::fprintf(stderr, "missing --tls-crypt/--ca/--cert/--key\n"); return 4; }
@@ -96,8 +105,22 @@ int main(int argc, char** argv) {
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
 
+    std::unique_ptr<TraceRing> trace;
+    if (!trace_file.empty()) {
+        if (trace_records < 1 || trace_records > 1000000) { std::fprintf(stderr, "--trace-records must be 1..1000000\n"); return 4; }
+        trace = std::make_unique<TraceRing>(static_cast<size_t>(trace_records));
+        opt.trace = trace.get();
+    }
+
     pal::VpnClient client;
     const pal::VpnExit rc = client.run(std::move(opt), g_stop);
     if (rc != pal::VpnExit::Ok) std::printf("pf_client: %s\n", client.error().c_str());
+    if (trace) {
+        std::ofstream f(trace_file, std::ios::binary | std::ios::trunc);
+        f << write_trace_jsonl(*trace);
+        if (!f) std::fprintf(stderr, "pf_client: cannot write trace file %s\n", trace_file.c_str());
+        else std::printf("trace: %zu records (%llu overwritten) -> %s\n", trace->size(),
+                         static_cast<unsigned long long>(trace->overwritten()), trace_file.c_str());
+    }
     return static_cast<int>(rc);
 }

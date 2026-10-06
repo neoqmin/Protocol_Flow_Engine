@@ -37,7 +37,7 @@ Error DataPath::seal(PacketBuffer& pkt, uint8_t key_id, uint32_t peer_id) {
     ctx.aead = aead_;
     ctx.header = OvpnHeader{OvpnOpcode::DataV2, key_id, peer_id};
     ctx.header_valid = true;
-    const FlowResult r = run_flow(tx_, ctx);
+    const FlowResult r = run_flow(tx_, ctx, nullptr, kDefaultMaxSteps, trace_);
     return r.outcome == FlowOutcome::Completed ? Error::None : (is_error(r.error) ? r.error : Error::Internal);
 }
 
@@ -46,7 +46,7 @@ DataPath::Opened DataPath::open(PacketBuffer& pkt) {
     ctx.packet = &pkt;
     ctx.keys = keys_;
     ctx.aead = aead_;
-    const FlowResult r = run_flow(rx_, ctx);
+    const FlowResult r = run_flow(rx_, ctx, nullptr, kDefaultMaxSteps, trace_);
     Opened o;
     if (r.outcome != FlowOutcome::Completed) {
         o.error = is_error(r.error) ? r.error : Error::Internal;

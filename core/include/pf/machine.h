@@ -249,6 +249,10 @@ public:
     std::optional<MachineStep> poll_timer(FlowContext& ctx, uint64_t now_ms);
     std::optional<uint64_t> next_deadline_ms() const;
 
+    // Optional trace sink (pf/trace.h): Event, Transition, Emit and MachineEnd records, plus the handler Flows' own
+    // Node/FlowEnd records. The runner stamps the sink's clock with every call's now_ms. nullptr = off.
+    void set_trace(TraceSink* trace) { trace_ = trace; }
+
     size_t state() const { return state_; }
     MachineStatus status() const { return status_; }
     Error error() const { return error_; }
@@ -261,8 +265,12 @@ private:
     bool take(size_t t, FlowContext& ctx, uint64_t now_ms, MachineStep& step);
     std::optional<size_t> select(size_t event) const;
     void fail(Error e);
+    void trace(TraceKind kind, std::string_view name, size_t state, std::string_view to = {}, uint8_t result = 0,
+               Error error = Error::None, uint32_t value = 0);
+    void stamp(uint64_t now_ms) { if (trace_) trace_->now_ms = now_ms; }
 
     const Machine* m_;
+    TraceSink* trace_ = nullptr;
     size_t state_ = 0;
     bool started_ = false;
     MachineStatus status_ = MachineStatus::Running;

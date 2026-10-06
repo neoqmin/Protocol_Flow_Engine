@@ -9,6 +9,7 @@
 #include "pf/blocks/data_plane_blocks.h"
 #include "pf/blocks/openvpn_blocks.h"
 #include "pf/flow_validator.h"
+#include "pf/trace.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     static pf::BlockRegistry reg = [] {
@@ -26,6 +27,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     pf::PacketBuffer pkt = pf::PacketBuffer::from_bytes(data + text_end, size - text_end);
     pf::FlowContext ctx;
     ctx.packet = &pkt;
-    (void)pf::run_flow(l.flow, ctx);
+    pf::PacketBuffer copy = pf::PacketBuffer::from_bytes(data + text_end, size - text_end);
+    pf::FlowContext traced;
+    traced.packet = &copy;
+    pf::TraceRing trace(32);
+    const pf::FlowResult a = pf::run_flow(l.flow, ctx);
+    const pf::FlowResult b = pf::run_flow(l.flow, traced, nullptr, pf::kDefaultMaxSteps, &trace);   // tracing changes nothing
+    if (a.outcome != b.outcome || a.error != b.error || a.steps != b.steps || pkt.size() != copy.size()) std::abort();
+    if (trace.size() == 0 || pf::write_trace_jsonl(trace).empty()) std::abort();
     return 0;
 }

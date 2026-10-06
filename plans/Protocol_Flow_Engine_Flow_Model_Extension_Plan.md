@@ -203,6 +203,12 @@ NAT 계획 §15의 trace, 에디터의 "어느 노드에서 Drop됐나" 표시, 
 | 출력 | JSON Lines(정규 출력은 `json.h` 재사용). `pf_client --trace FILE`, 테스트 assertion, 이후 MCP Resource(PM-7) |
 | 검증 | 키·평문이 trace에 나오지 않는지 테스트로 고정한다. 알려진 테스트 키 바이트와 평문 패턴을 trace 출력에서 검색해서 0건이어야 한다 |
 
+### 7.1 v1 구현 범위 (D-042)
+
+- 구현: `core/include/pf/trace.h`(`TraceSink`, `TraceRing`, JSON Lines), `run_flow(..., TraceSink*)`, `MachineRunner::set_trace`, `DataPath`/`TunnelSession::set_trace`, `pf_client --trace`.
+- 레코드 종류: `node`, `flow_end`, `event`, `transition`, `emit`, `machine_end`. 위 표의 `timer`·`action` 종류는 따로 두지 않았다. 타이머 발생은 `event`(`timer:x`)로, action은 `emit`·`transition`으로 나타난다.
+- 바이트를 담는 필드가 아예 없으므로 비공개 규칙은 구조로 보장된다. **주소 `meta`·마스킹·테스트 전용 덤프 sink는 v1에 없다.** 주소가 처음 생기는 PM-2b에서 결정한다.
+
 ## 8. D-009와의 관계, 이행 순서
 
 - D-009는 **MVP 결정으로 그대로 둔다.** OpenVPN 제어 채널(`ControlClient`)은 State Machine 런타임이 동등성을 증명하기 전까지 일반 코드로 유지한다.
@@ -220,7 +226,7 @@ NAT 계획 §15의 trace, 에디터의 "어느 노드에서 Drop됐나" 표시, 
 | S2 ✅ | Machine Validator (§4 전체, `tests/unit/test_machine_validator.cpp`) | 유효/무효 Machine 케이스 + **무작위 Machine 차등 테스트**(Validator가 통과시킨 것은 무작위 이벤트열에서 반드시 final 또는 정상 대기로 끝나야 함) |
 | S3 ✅ | `protocol-machine` v1 로더/라이터 + 마이그레이션 규칙(Flow JSON v1 §7과 동일, `upgrade_document` 공유) | 스키마 테스트, fuzz 타깃(`fuzz_machine_load`) |
 | S4 ✅ | 동등성: `KeepaliveTimer`를 Machine으로 표현 → 기존 코드와 차등 테스트 (`tests/flow/test_machine_keepalive.cpp`, 골든 `machine_keepalive.machine.json`) | 무작위 이벤트·시간열에서 출력 동일, 변이 검출 |
-| S5 | F-3 Trace (`run_flow` + `MachineRunner`) | 비공개 규칙 테스트, 성능 측정(trace 끔 상태 기준선 유지) |
+| S5 ✅ | F-3 Trace (`run_flow` + `MachineRunner`, D-042) | 비공개 규칙 테스트(실제 OpenVPN 골든), 성능 측정(trace 끔 상태 기준선 유지: `tests/performance/bench_flow_trace.cpp`) |
 | S6 | F-2 Context 일반화 | §6 종료 조건 |
 | S7 | 첫 실제 사용처: STUN binding transaction Machine (PM-2 N3와 함께) | 실제 STUN 서버 상대 상호운용 |
 

@@ -38,11 +38,15 @@ public:
     // Verifies and decrypts a wire packet. On success `pkt` holds only the plaintext.
     Opened open(PacketBuffer& pkt);
 
+    // Optional trace of both Flows (pf/trace.h); the caller keeps trace->now_ms current. nullptr = off.
+    void set_trace(TraceSink* trace) { trace_ = trace; }
+
 private:
     BlockRegistry reg_;
     Flow rx_, tx_;
     KeyStore* keys_ = nullptr;
     AeadProvider* aead_ = nullptr;
+    TraceSink* trace_ = nullptr;
 };
 
 }  // namespace pf

@@ -9,6 +9,7 @@
 
 #include "pf/control_client.h"
 #include "pf/fallback_connector.h"
+#include "pf/trace.h"
 #include "pf/transport.h"
 
 namespace pf::pal {
@@ -24,6 +25,7 @@ struct VpnOptions {
     int duration_s = 0;                   // 0 = until stopped; otherwise stop cleanly after this long (counted from tunnel up)
     int stats_interval_s = 60;            // periodic "stats:" lines
     bool install_routes = true;           // routes pushed by the server
+    TraceSink* trace = nullptr;           // optional data-plane trace (pf/trace.h); pf_client --trace
 };
 
 // 0 clean stop; 2 the session was lost or never came up (control failure, no transport worked, ping-restart): the

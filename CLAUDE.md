@@ -32,7 +32,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 언어 **C++17 확정**(D-013), TLS/암호는 **OpenSSL 3.x**(D-014, MVP-A)
 - 제품 방향은 VPN 엔진 유지. NAT Traversal은 PM-2b(참고 범위, 진입 시 재논의), "Protocol Lab" 제품 라인은 PM-6·PM-7 이후 재검토(D-039)
 - MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
-- Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). v1 구현: 평평한 상태, 카운터 guard, Dropped=비전이·Errored=실패, Validator가 무한 재시도·livelock 거부(D-041). `TunnelSession`은 아직 `KeepaliveTimer` 사용(동등성만 증명). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
+- Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). v1 구현: 평평한 상태, 카운터 guard, Dropped=비전이·Errored=실패, Validator가 무한 재시도·livelock 거부(D-041). `TunnelSession`은 아직 `KeepaliveTimer` 사용(동등성만 증명). Trace(`pf/trace.h`, D-042)는 이름·결과·길이만 기록하고 바이트·키는 담을 필드가 없다. 끄면 비용 0. Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
 - 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지
 
 ## 빌드 / 테스트
@@ -62,7 +62,7 @@ cmake -S . -B build -DPF_WITH_OPENSSL=ON -DPF_PROTOCOL_TESTS=ON && cmake --build
 ctest --test-dir build -L protocol --output-on-failure     # run_interop.sh(약 50초) + run_tunnel.sh(약 45초) + run_transport_tunnel.sh(약 90초)
 ```
 `build/pf_connect`는 `ControlClient`를 UDP로 구동하는 진단 도구(`--keepalive-seconds`, `--reneg-seconds`, `--probe-keys`).
-`build/pf_client`는 Linux 클라이언트(UDP→TCP 폴백 + 실제 TUN, root 필요): `pf_client --server ip:port --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S] [--tun-name N] [--mtu 1400] [--duration S] [--stats-interval S]`. 세션이 죽으면 종료 코드 2(재연결은 상위 감독자, D-029). 터널 테스트(ctest 라벨 `protocol`, 같은 랩 네임스페이스라 `RESOURCE_LOCK`으로 직렬화되며 **동시에 직접 실행 금지**): `run_tunnel.sh`(ping·재협상 부하, `PF_ONLY=soak PF_SOAK_SECONDS=3700` 옵트인 1시간 soak) 와 `run_transport_tunnel.sh`(UDP·TCP·UDP 무음 차단→TCP 폴백 5개 시나리오, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 둘 다 `PF_CLIENT=build/pf_client`.
+`build/pf_client`는 Linux 클라이언트(UDP→TCP 폴백 + 실제 TUN, root 필요): `pf_client --server ip:port --tls-crypt tc.key --ca ca.crt --cert c.crt --key c.key [--proto udp|tcp|auto] [--tcp-port P] [--connect-timeout S] [--tun-name N] [--mtu 1400] [--duration S] [--stats-interval S] [--trace FILE]`(`--trace`: 데이터 경로 trace를 종료 시 JSON Lines로, D-042). 세션이 죽으면 종료 코드 2(재연결은 상위 감독자, D-029). 터널 테스트(ctest 라벨 `protocol`, 같은 랩 네임스페이스라 `RESOURCE_LOCK`으로 직렬화되며 **동시에 직접 실행 금지**): `run_tunnel.sh`(ping·재협상 부하, `PF_ONLY=soak PF_SOAK_SECONDS=3700` 옵트인 1시간 soak) 와 `run_transport_tunnel.sh`(UDP·TCP·UDP 무음 차단→TCP 폴백 5개 시나리오, `TUNNEL_SECONDS=3720 TUNNEL_RENEG=3600 TUNNEL_EXPECT_RENEG=1 [TUNNEL_PROTO=tcp]`로 1시간 soak). 둘 다 `PF_CLIENT=build/pf_client`.
 성능 기준선: `docs/Performance_Baseline.md` (`tests/performance/bench_data_path.cpp`, `tools/interop/bench_tunnel.sh`, Release 빌드 필수).
 키/인증서는 실행마다 생성되며 커밋하지 않는다. verb 7 로그에는 테스트 세션 키가 있으므로 로그/pcap을 그대로 커밋하지 않는다.
 

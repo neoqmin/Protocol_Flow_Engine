@@ -30,11 +30,24 @@
 
 **통합 후 재측정**(D-037, `TunnelSession`+`platform/linux`로 단일화한 `pf_client`, 같은 방법): TCP 업 479 / 다운 565 / UDP 299 Mbit/s vs stock 447 / 485 / 282 — 여전히 같은 수준(공유 VM, ±15%).
 
+## 3. Flow 실행기 오버헤드와 trace (F-3, D-042, 2026-10-06)
+
+`tests/performance/bench_flow_trace.cpp`: 빈 블록 8개(Decision 1개 포함)짜리 Flow를 반복 실행해 실행기 자체 비용을 잰다. Release, 같은 VM.
+
+| 경우 | ns/실행 |
+|---|---|
+| trace 도입 전 | 16.9 ~ 18.9 |
+| trace 도입 후, **끔**(`trace == nullptr`) | 18.0 ~ 20.8 (노이즈 범위, 끈 경로는 trace 검사가 없는 별도 인스턴스) |
+| trace 도입 후, **켬**(`TraceRing`) | 179 ~ 210 (기록 9개, 기록당 약 22ns) |
+
+§1 DataPath 왕복 벤치마크도 trace 도입 전후가 같다(노이즈 범위). trace는 진단용으로 켜는 기능이므로 켬 비용(패킷당 약 0.1~0.2µs, 왕복 2µs 대비 5~10%)은 허용 범위다.
+
 ## 재현
 
 ```sh
 cmake -S . -B build-rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DPF_WITH_OPENSSL=ON && cmake --build build-rel
 ./build-rel/tests/pf_bench_data_path
+./build-rel/tests/pf_bench_flow_trace
 apt-get install -y iperf3
 sudo PF_CLIENT=$PWD/build-rel/pf_client tools/interop/bench_tunnel.sh 6   # run_interop/run_tunnel과 동시 실행 금지(같은 netns)
 ```

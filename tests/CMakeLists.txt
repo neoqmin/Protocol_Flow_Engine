@@ -98,6 +98,11 @@ if(PF_HAVE_OPENSSL)
   add_test(NAME pf_bench_data_path COMMAND pf_bench_data_path)
   set_tests_properties(pf_bench_data_path PROPERTIES LABELS performance)
 endif()
+# Flow runner overhead with tracing off/on (label: performance; informational).
+add_executable(pf_bench_flow_trace performance/bench_flow_trace.cpp)
+target_link_libraries(pf_bench_flow_trace PRIVATE pf_core)
+add_test(NAME pf_bench_flow_trace COMMAND pf_bench_flow_trace)
+set_tests_properties(pf_bench_flow_trace PROPERTIES LABELS performance)
 
 # libFuzzer targets (Clang only): cmake -DPF_BUILD_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++
 if(PF_BUILD_FUZZ)

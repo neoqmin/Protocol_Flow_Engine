@@ -56,7 +56,11 @@ public:
     bool established() const { return keepalive_.has_value(); }
     const Stats& stats() const { return stats_; }
 
+    // Optional trace of the data-plane Flows (pf/trace.h), stamped with the now_ms of each call. nullptr = off.
+    void set_trace(TraceSink* trace) { trace_ = trace; data_.set_trace(trace); }
+
 private:
+    void stamp(uint64_t now_ms) { if (trace_) trace_->now_ms = now_ms; }
     TunnelSession(ControlClient& c, KeyStore& k);
     void maybe_start_keepalive(uint64_t now_ms);
     bool encrypt(const uint8_t* payload, size_t len, std::vector<uint8_t>& wire);
@@ -68,6 +72,7 @@ private:
     std::optional<KeepaliveTimer> keepalive_;     // created when the control channel reaches Established
     bool timed_out_ = false;
     Stats stats_;
+    TraceSink* trace_ = nullptr;
 };
 
 }  // namespace pf

@@ -5,7 +5,8 @@
 #   PF_CLIENT=<path to pf_client> tests/protocol/run_tunnel.sh
 #
 # Scenarios (fresh server and PKI each):
-#   ping          tunnel comes up, address/route installed, 20 pings + 1300-byte pings, 0% loss
+#   ping          tunnel comes up, address/route installed, 20 pings + 1300-byte pings, 0% loss; also runs with
+#                 --trace and checks the data-plane trace file (F-3): valid JSON Lines, RX and TX flows completed
 #   reneg-load    server renegotiates every 2 s while pinging continuously: >= 8 rekeys, key_id wraps 7 -> 1, 0% loss
 #   soak          OPT-IN: PF_SOAK_SECONDS=3700 (A4 exit criterion: 1 hour + a renegotiation with the server's DEFAULT
 #                 reneg-sec 3600). Pings once a second (ping -w deadline, so it ends before the client does); fails on any loss burst > 5 packets.
@@ -19,14 +20,32 @@ BASE="$(mktemp -d)"
 trap 'rm -rf "$BASE"' EXIT
 FAILED=0
 
+# The data-plane trace pf_client wrote with --trace: JSON Lines, header first, RX (data_rx) and TX (data_tx) flows that
+# completed, every record a known kind. Prints a one-line summary.
+check_trace() {
+  python3 -I - "$1" <<'PY'
+import json, sys, collections
+lines = open(sys.argv[1]).read().splitlines()
+head = json.loads(lines[0])
+assert head["kind"] == "trace" and head["records"] == len(lines) - 1, head
+recs = [json.loads(l) for l in lines[1:]]
+assert all(r["kind"] in ("node", "flow_end") for r in recs)
+ends = collections.Counter((r["flow"], r["outcome"]) for r in recs if r["kind"] == "flow_end")
+assert ends[("data_rx", "Completed")] > 0 and ends[("data_tx", "Completed")] > 0, ends
+assert all(r["t"] > 0 for r in recs)
+print("trace ok:", len(recs), "records,", dict(ends))
+PY
+}
+
 # scenario <name> <server --reneg-sec> <client seconds> <ping args> <extra server args...>
 scenario() {
   local name="$1" reneg="$2" secs="$3" pingargs="$4" OUT="$BASE/$1"; shift 4
   mkdir -p "$OUT"
   echo "=== scenario: $name (server reneg-sec=$reneg, client runs ${secs}s) ==="
-  export PF_SECS="$secs" PF_PING_ARGS="$pingargs"
+  export PF_SECS="$secs" PF_PING_ARGS="$pingargs" PF_EXTRA=""
+  [ "$name" = ping ] && PF_EXTRA="--trace $OUT/trace.jsonl --trace-records 100000"
   LAB_RENEG="$reneg" \
-  LAB_CLIENT_CMD='$PFC --server $HOST_IP:$PORT --tls-crypt $OUT/tc.key --ca $OUT/ca.crt --cert $OUT/client.crt --key $OUT/client.key --duration $PF_SECS --stats-interval 600 &
+  LAB_CLIENT_CMD='$PFC --server $HOST_IP:$PORT --tls-crypt $OUT/tc.key --ca $OUT/ca.crt --cert $OUT/client.crt --key $OUT/client.key --duration $PF_SECS --stats-interval 600 $PF_EXTRA &
     cpid=$!; sleep 3
     echo "--- tunnel state ---"; ip -br addr show | grep -v "^lo"; ip route
     echo "--- ping ---"; ping $PF_PING_ARGS 10.77.0.1; echo "ping exit: $?"
@@ -48,7 +67,8 @@ scenario() {
   local loss; loss="$(grep -Eo '[0-9]+% packet loss' "$log" | head -1 | cut -d% -f1)"
   case "$name" in
     ping)        [ "$loss" = 0 ] || fail "ping loss ${loss}%"
-                 grep -q "large ping exit: 0" "$log" || fail "large (1300-byte) ping got no reply" ;;
+                 grep -q "large ping exit: 0" "$log" || fail "large (1300-byte) ping got no reply"
+                 check_trace "$OUT/trace.jsonl" || fail "trace file missing or wrong" ;;
     reneg-load)  [ "$loss" = 0 ] || fail "ping loss ${loss}% during renegotiations"
                  grep -Eq "final: .*renegotiations=([89]|[1-9][0-9]+) " "$log" || fail "fewer than 8 renegotiations"
                  grep -Eq "key_ids=.*,7,1,2" "$log" || fail "key_id did not wrap from 7 back to 1" ;;

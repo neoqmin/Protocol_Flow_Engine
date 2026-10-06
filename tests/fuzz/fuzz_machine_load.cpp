@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "pf/machine_json.h"
+#include "pf/trace.h"
 
 namespace {
 pf::BlockResult pass(pf::FlowContext&) { return pf::BlockResult::Continue; }
@@ -55,6 +56,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (!r) std::abort();                                   // every param was supplied with a legal value
     pf::FlowContext ctx;
     uint64_t now = 0;
+    pf::TraceRing trace(64);                                // tracing must never change or break anything
+    r->set_trace(&trace);
     r->start(ctx, now);
     if (r->error() == pf::Error::StepLimit) std::abort();
     const size_t nevents = l.doc.events.size();
@@ -82,5 +85,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (++firings > 1000000) std::abort();         // validator accepted a machine that retries forever
         }
     }
+    if (pf::write_trace_jsonl(trace).empty()) std::abort();
     return 0;
 }
