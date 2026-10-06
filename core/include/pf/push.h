@@ -50,6 +50,28 @@ enum class PushStatus { Ok, NotPushReply, BadOption };
 // `msg` without the trailing NUL. Unknown options are kept; malformed values of options we interpret are errors.
 PushStatus parse_push_reply(std::string_view msg, PushReply& out);
 
+// What a server pushes to one client (MVP profile, D-048). Addresses are IPv4 in host byte order.
+struct ServerPush {
+    uint32_t ifconfig_ip = 0;
+    uint32_t ifconfig_netmask = 0;
+    uint32_t route_gateway = 0;
+    uint32_t peer_id = 0;                    // 24 bit; 0xFFFFFF is reserved ("no peer-id")
+    uint32_t ping_seconds = 10;              // 0 = do not push (keepalive off)
+    uint32_t ping_restart_seconds = 60;
+    uint32_t tun_mtu = 1500;
+    std::vector<PushedRoute> routes;
+};
+
+// One PUSH_REPLY message is all we send (no push-continuation yet): longer replies are refused.
+constexpr size_t kMaxPushReply = 1024;
+
+// "PUSH_REPLY,route-gateway G,topology subnet,ping P,ping-restart R,route ...,ifconfig A M,peer-id N,
+//  cipher AES-256-GCM,protocol-flags tls-ekm,tun-mtu T" (order as observed from 2.6.19, without cc-exit and
+// dyn-tls-crypt, which we do not implement). false: no address, reserved peer-id, or too long.
+bool build_push_reply(const ServerPush& s, std::string& out);
+
+std::string format_ipv4(uint32_t ip);
+
 // Strict dotted-quad IPv4 (no spaces, no leading zeros, each part 0..255).
 bool parse_ipv4(std::string_view s, uint32_t& out);
 

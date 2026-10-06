@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 — D-045, N2 — D-046, N3 STUN 클라이언트 — D-047)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 — D-045, N2 — D-046, N3 — D-047, PM-11 진입 결정 + V1 `ControlServer` — D-048)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -26,7 +26,9 @@
 - [x] **PM-2b / N1 STUN 코덱** — RFC 8489 코덱 + RFC 5769 벡터 4개(바이트 단위 재현) + `StunSlot` + `is_stun`/`parse_stun` 블록 + fuzz (D-045)
 - [x] **PM-2b / N2 메모리 NAT 시뮬레이터** — RFC 4787 `Nat` + realm 트리 `Network`(hairpin·CGN) + `NetworkTransport`, 9개 조합을 실제 STUN으로 검증 (D-046)
 - [x] **PM-2b / N3 STUN 클라이언트** — Binding Machine(RFC 8489 재전송) + RFC 5780 탐지 + 응답기 + `pf_stun`, 시뮬레이터 27개 설정·수정 없는 coturn·실제 커널 NAT로 검증 (D-047)
-- [ ] **다음: PM-2b ① 완료 → ② PM-11 OpenVPN 호환 서버** (진입 시 5가지 결정: 동시성 모델, 설정 형식, 클라이언트 인증, 관리 인터페이스, 플랫폼 — `docs/PM11_OpenVPN_Server_Scope.md` §5)
+- [x] **PM-2b ① 완료 → ② PM-11 진입 결정** — 단일 스레드 이벤트 루프, `server.conf` 부분집합(모르는 지시어는 오류), 인증서 + CRL + 사용자 이름/비밀번호(외부 훅), management 인터페이스 호환 부분집합, Linux 우선 (D-048)
+- [x] **PM-11 / V1 `ControlServer`** — sans-I/O 서버 제어 채널(클라이언트 1개): CRL, 능력 검사, 비동기 인증 결정, 재협상 신원 고정, ACK 확인 뒤 TX 전환, 바인딩 뒤에만 재생 창 갱신, 클라이언트 `auth-user-pass` (D-048)
+- [ ] **다음: PM-11 / V2 다중 클라이언트** — 세션 표, peer-id, 세션별 재생 상태, 상태 없는 첫 패킷, 한도
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -38,7 +40,7 @@
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
 | MVP-C Flow JSON + Validator | ✅ 완료 (C1~C3) |
-| Post-MVP (PM-1 ~ PM-11, 공통 기반 F) | F-1·F-2·F-3 ✅, PM-2 진행 중(N0 ✅) |
+| Post-MVP (PM-1 ~ PM-11, 공통 기반 F) | F-1·F-2·F-3 ✅, PM-2 ①(N0~N3) ✅, PM-11 진행 중(V1 ✅) |
 
 ---
 
@@ -224,9 +226,15 @@
 - [ ] PM-8 🔧 OpenVPN DCO / Kernel Runtime (오픈소스 수정 가능성)
 - [ ] PM-9 프로토콜 확장 (WireGuard / SDP / NAC)
 - [ ] PM-10 암호 확장 (tls-crypt-v2, KCMVP 등)
-- [ ] PM-11 OpenVPN 호환 서버 `pf_server` ([docs/PM11_OpenVPN_Server_Scope.md](docs/PM11_OpenVPN_Server_Scope.md), D-044) — 진입: PM-2b ① 뒤
-  - [ ] V1 `ControlServer`(sans-I/O, 클라이언트 1개) — `fake_ovpn_server`를 정식 컴포넌트로
-  - [ ] V2 다중 클라이언트·peer-id·인증 전 상태 최소화·한도
+- [~] PM-11 OpenVPN 호환 서버 `pf_server` ([docs/PM11_OpenVPN_Server_Scope.md](docs/PM11_OpenVPN_Server_Scope.md), D-044, D-048)
+  - [x] 진입 결정 5가지 (D-048)
+  - [x] V1 `ControlServer`(sans-I/O, 클라이언트 1개, CRL·능력 검사·비동기 인증·재협상 신원 고정) — `FakeServer`는 결함 주입용으로 유지 (D-048)
+  - [ ] V2 다중 클라이언트·peer-id·인증 전 상태 최소화·세션별 재생 상태·한도
+  - [ ] V3 서버 데이터 경로·주소 풀·keepalive
+  - [ ] V4 TCP 서버
+  - [ ] V5 설정 파서(`server.conf` 부분집합) + `pf_server` + 수정 없는 OpenVPN 2.6 클라이언트 상호운용
+  - [ ] V6 외부 인증 훅(via-file) + management 인터페이스 부분집합
+  - [ ] V7 soak·성능·fuzz
   - [ ] V3 서버 데이터 경로·TUN·주소 풀·라우팅
   - [ ] V4 TCP 서버 Transport
   - [ ] V5 `pf_server` + 수정 없는 OpenVPN 2.6 클라이언트 상호운용(UDP·TCP·재협상·동시 3개)
@@ -267,7 +275,7 @@
 - [x] Relay 구현 방식 → D-044: 자체 TURN 서버 + coturn 상호운용
 - [x] 피어 역할·시그널링·순서 → D-044
 - [ ] rendezvous 프로토콜 세부, TURN 자격증명 방식 (N5)
-- [ ] PM-11 진입 시 5가지: 동시성 모델, 설정 형식, 클라이언트 인증, 관리 인터페이스, 플랫폼
+- [x] PM-11 진입 시 5가지: 동시성 모델, 설정 형식, 클라이언트 인증, 관리 인터페이스, 플랫폼 → D-048
 - [ ] State Machine 세부: ~~계층 상태, guard 범위~~(D-041), `spawn`/변수, DSL 표기, 에디터 표시
 - [ ] 모바일 TLS/암호 라이브러리 (PM-1 진입 전)
 - [ ] Windows용 암호 라이브러리 연결 (현재 CI는 OpenSSL OFF, PM-1)

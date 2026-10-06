@@ -40,9 +40,12 @@ ControlClient::ControlClient(ControlClientConfig cfg)
     secure_zero(cfg_.tls_crypt_key.data(), cfg_.tls_crypt_key.size());   // channel_ holds what it needs
 }
 
+ControlClient::~ControlClient() { secure_zero(cfg_.password.data(), cfg_.password.size()); }
+
 std::unique_ptr<ControlClient> ControlClient::create(ControlClientConfig cfg, std::string& error) {
     if (cfg.tls.role != TlsRole::Client) { error = "ControlClient needs a TLS client configuration"; return nullptr; }
     if (cfg.max_payload < 16) { error = "max_payload too small"; return nullptr; }
+    if (cfg.username.empty() && !cfg.password.empty()) { error = "a password needs a username"; return nullptr; }
     if (!cfg.random) cfg.random = default_random;
     std::unique_ptr<ControlClient> c(new ControlClient(std::move(cfg)));
     // Validate the TLS configuration once up front; each key state builds its own session from it.
@@ -67,7 +70,7 @@ ControlClient::KeyState* ControlClient::find_state(uint8_t key_id) {
 ControlClient::KeyState* ControlClient::add_state(uint8_t key_id, bool initial) {
     auto ks = std::make_unique<KeyState>(key_id, initial, cfg_.reliable);
     std::string err;
-    ks->tls = TlsSession::create(cfg_.tls, err);
+    ks->tls = TlsSession::create(!initial && cfg_.reneg_override_for_test.tls ? *cfg_.reneg_override_for_test.tls : cfg_.tls, err);
     if (!ks->tls) return nullptr;
     ks->started_ms = now_ms_;
     KeyState* raw = ks.get();
@@ -203,8 +206,12 @@ void ControlClient::send_key_method(KeyState& ks) {
     cfg_.random(m.random2.data(), m.random2.size());
     m.options = cfg_.options_string;
     m.peer_info = cfg_.peer_info;
+    m.username = !ks.initial && cfg_.reneg_override_for_test.username ? *cfg_.reneg_override_for_test.username : cfg_.username;
+    m.password = cfg_.password;
     std::vector<uint8_t> w;
-    if (!build_key_method2(m, KeyMethod2From::Client, w)) {
+    const bool built = build_key_method2(m, KeyMethod2From::Client, w);
+    secure_zero(m.password.data(), m.password.size());
+    if (!built) {
         if (ks.initial) fail("cannot build key-method 2 message"); else abandon_reneg("cannot build key-method 2 message");
         return;
     }

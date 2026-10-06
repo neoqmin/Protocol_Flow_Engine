@@ -22,4 +22,11 @@ enum class OpenControlStatus {
 
 OpenControlStatus open_control_packet(TlsCryptChannel& ch, const uint8_t* datagram, size_t len, ControlPacket& out);
 
+// Server variant (D-048): on Ok the replay state is NOT yet updated; the caller binds the packet to its session and
+// then calls commit_control_packet(ch, ticket). A packet that is authentic but not ours is simply never committed.
+struct ReplayTicket { uint32_t net_time = 0, packet_id = 0; };
+OpenControlStatus open_control_packet_deferred(const TlsCryptChannel& ch, const uint8_t* datagram, size_t len,
+                                               ControlPacket& out, ReplayTicket& ticket);
+void commit_control_packet(TlsCryptChannel& ch, const ReplayTicket& ticket);
+
 }  // namespace pf

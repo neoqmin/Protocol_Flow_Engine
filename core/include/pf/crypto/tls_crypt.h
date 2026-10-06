@@ -74,6 +74,11 @@ public:
     bool wrap(uint8_t op_keyid, const uint8_t session_id[8], const uint8_t* payload, size_t len,
               uint32_t net_time, std::vector<uint8_t>& wire_out);
     TlsCryptStatus unwrap(const uint8_t* wire, size_t len, TlsCryptPlain& out);
+    // unwrap() in two steps, for a server (D-048): open() authenticates and applies the replay rules WITHOUT changing
+    // any state; commit() records the packet once the caller has bound it to its session. Every client shares the
+    // tls-crypt key, so a packet can be authentic yet belong to someone else: it must not move this session's window.
+    TlsCryptStatus open(const uint8_t* wire, size_t len, TlsCryptPlain& out) const;
+    void commit(uint32_t net_time, uint32_t packet_id);
 
     void set_next_packet_id_for_test(uint32_t id) { tx_next_ = id; }
 

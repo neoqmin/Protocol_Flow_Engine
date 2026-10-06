@@ -12,6 +12,10 @@ struct TestPki {
     std::string wrong_eku_server_cert_pem, wrong_eku_server_key_pem;   // signed by ca, EKU clientAuth only
     std::string other_ca_pem;                          // an unrelated CA
     std::string other_server_cert_pem, other_server_key_pem;           // signed by other_ca
+    std::string client2_cert_pem, client2_key_pem;                     // a second client (CN pf-client-2)
+    std::string revoked_client_cert_pem, revoked_client_key_pem;       // CN pf-client-revoked, listed in crl_pem
+    std::string crl_pem;                                               // issued by ca, revokes only revoked_client
+    std::string other_ca_crl_pem;                                      // issued by other_ca (empty)
 };
 
 // Throws std::runtime_error on failure.

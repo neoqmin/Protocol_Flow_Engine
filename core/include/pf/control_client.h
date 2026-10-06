@@ -30,6 +30,9 @@ struct ControlClientConfig {
     TlsConfig tls;                                                // role must be Client
     std::string options_string = default_client_options();
     std::string peer_info = default_peer_info();
+    // auth-user-pass: sent in every key-method 2 message (initial key and renegotiations), like OpenVPN does.
+    // Empty username = not sent. The password is a SECRET: never logged, wiped when the client is destroyed.
+    std::string username, password;
     size_t server_km2_optional_fields = 3;      // username, password, peer info follow the server's options string (observed: 3)
     size_t max_payload = 1100;                  // TLS bytes per CONTROL_V1 message
     ReliableConfig reliable;
@@ -44,6 +47,9 @@ struct ControlClientConfig {
     EkmLayout ekm;                              // how the exported keying material is split (hypothesis, see header)
     std::function<void(uint8_t*, size_t)> random;   // CSPRNG; defaults to OpenSSL RAND_bytes
     KeyStore* keys = nullptr;                   // receives the data keys (key_id 0, tx and rx) on success
+    // TEST HOOK: present another identity in renegotiations (a server must refuse it).
+    struct RenegOverride { std::optional<TlsConfig> tls; std::optional<std::string> username; };
+    RenegOverride reneg_override_for_test;
 };
 
 // Control channel client for the OpenVPN 2.6 MVP profile (client role, tls-crypt, TLS 1.3, key-method 2, tls-ekm).
@@ -67,6 +73,9 @@ public:
 
     // nullptr + `error` if the configuration is unusable.
     static std::unique_ptr<ControlClient> create(ControlClientConfig cfg, std::string& error);
+    ~ControlClient();
+    ControlClient(const ControlClient&) = delete;
+    ControlClient& operator=(const ControlClient&) = delete;
 
     void start(uint64_t now_ms, uint32_t unix_s);
     // true if the datagram was a control packet (accepted or dropped); false if it is something else.

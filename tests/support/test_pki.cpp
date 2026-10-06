@@ -7,6 +7,7 @@
 #include <openssl/x509v3.h>
 
 #include <memory>
+#include <vector>
 #include <stdexcept>
 
 namespace pf_test {
@@ -74,6 +75,30 @@ std::string key_pem(EVP_PKEY* k) {
     return std::string(p, static_cast<size_t>(n));
 }
 
+// A CRL signed by `ca` that lists the given certificates (may be empty).
+std::string make_crl(X509* ca, EVP_PKEY* ca_key, const std::vector<X509*>& revoked) {
+    std::unique_ptr<X509_CRL, Free<X509_CRL, X509_CRL_free>> crl(X509_CRL_new());
+    check(crl != nullptr, "X509_CRL_new");
+    X509_CRL_set_version(crl.get(), 1);
+    X509_CRL_set_issuer_name(crl.get(), X509_get_subject_name(ca));
+    std::unique_ptr<ASN1_TIME, Free<ASN1_TIME, ASN1_TIME_free>> last(X509_gmtime_adj(nullptr, -60)), next(X509_gmtime_adj(nullptr, 3600));
+    X509_CRL_set1_lastUpdate(crl.get(), last.get());
+    X509_CRL_set1_nextUpdate(crl.get(), next.get());
+    for (X509* c : revoked) {
+        X509_REVOKED* r = X509_REVOKED_new();
+        check(r != nullptr, "X509_REVOKED_new");
+        X509_REVOKED_set_serialNumber(r, X509_get_serialNumber(c));
+        X509_REVOKED_set_revocationDate(r, last.get());
+        X509_CRL_add0_revoked(crl.get(), r);
+    }
+    X509_CRL_sort(crl.get());
+    check(X509_CRL_sign(crl.get(), ca_key, EVP_sha256()) > 0, "CRL sign");
+    Mem b(BIO_new(BIO_s_mem()));
+    PEM_write_bio_X509_CRL(b.get(), crl.get());
+    char* p = nullptr; long n = BIO_get_mem_data(b.get(), &p);
+    return std::string(p, static_cast<size_t>(n));
+}
+
 }  // namespace
 
 TestPki make_test_pki() {
@@ -92,6 +117,13 @@ TestPki make_test_pki() {
     t.wrong_eku_server_cert_pem = cert_pem(bad.get()); t.wrong_eku_server_key_pem = key_pem(bad_key.get());
     t.other_ca_pem = cert_pem(oca.get());
     t.other_server_cert_pem = cert_pem(osrv.get()); t.other_server_key_pem = key_pem(osrv_key.get());
+    Pkey cli2_key = new_key(), rev_key = new_key();
+    Cert cli2 = make_cert("pf-client-2", cli2_key.get(), ca.get(), ca_key.get(), "clientAuth");
+    Cert rev = make_cert("pf-client-revoked", rev_key.get(), ca.get(), ca_key.get(), "clientAuth");
+    t.client2_cert_pem = cert_pem(cli2.get()); t.client2_key_pem = key_pem(cli2_key.get());
+    t.revoked_client_cert_pem = cert_pem(rev.get()); t.revoked_client_key_pem = key_pem(rev_key.get());
+    t.crl_pem = make_crl(ca.get(), ca_key.get(), {rev.get()});
+    t.other_ca_crl_pem = make_crl(oca.get(), oca_key.get(), {});
     return t;
 }
 

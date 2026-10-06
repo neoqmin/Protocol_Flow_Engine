@@ -79,6 +79,28 @@ bool PushReply::supported_by_mvp() const {
            (topology.empty() || topology == "subnet");
 }
 
+std::string format_ipv4(uint32_t ip) {
+    return std::to_string(ip >> 24) + "." + std::to_string((ip >> 16) & 0xFF) + "." + std::to_string((ip >> 8) & 0xFF) + "." +
+           std::to_string(ip & 0xFF);
+}
+
+bool build_push_reply(const ServerPush& s, std::string& out) {
+    if (s.ifconfig_ip == 0 || s.peer_id >= 0xFFFFFF) return false;
+    std::string m = "PUSH_REPLY,route-gateway " + format_ipv4(s.route_gateway) + ",topology subnet";
+    if (s.ping_seconds != 0) m += ",ping " + std::to_string(s.ping_seconds);
+    if (s.ping_restart_seconds != 0) m += ",ping-restart " + std::to_string(s.ping_restart_seconds);
+    for (const auto& r : s.routes) {
+        m += ",route " + format_ipv4(r.network) + " " + format_ipv4(r.netmask);
+        if (r.has_gateway) m += " " + format_ipv4(r.gateway);
+    }
+    m += ",ifconfig " + format_ipv4(s.ifconfig_ip) + " " + format_ipv4(s.ifconfig_netmask);
+    m += ",peer-id " + std::to_string(s.peer_id) + ",cipher AES-256-GCM,protocol-flags tls-ekm";
+    if (s.tun_mtu != 0) m += ",tun-mtu " + std::to_string(s.tun_mtu);
+    if (m.size() > kMaxPushReply) return false;
+    out = std::move(m);
+    return true;
+}
+
 PushStatus parse_push_reply(std::string_view msg, PushReply& out) {
     if (classify_control_message(msg) != ControlMessageKind::PushReply) return PushStatus::NotPushReply;
 

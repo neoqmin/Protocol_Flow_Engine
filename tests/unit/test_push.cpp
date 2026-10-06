@@ -107,3 +107,56 @@ PF_TEST(push_ipv4_parser_accepts_only_dotted_quads) {
     PF_CHECK(!parse_ipv4("1.2.3.04", v));
     PF_CHECK(!parse_ipv4("10.077.0.1", v));
 }
+
+PF_TEST(push_builds_a_reply_the_parser_reads_back) {
+    ServerPush s;
+    s.ifconfig_ip = 0x0A080002; s.ifconfig_netmask = 0xFFFFFF00; s.route_gateway = 0x0A080001;
+    s.peer_id = 3; s.ping_seconds = 10; s.ping_restart_seconds = 60; s.tun_mtu = 1500;
+    s.routes.push_back({0xC0A86400, 0xFFFFFF00, false, 0});
+    s.routes.push_back({0xAC100000, 0xFFF00000, true, 0x0A080001});
+    std::string msg;
+    PF_REQUIRE(build_push_reply(s, msg));
+    PF_CHECK(msg == "PUSH_REPLY,route-gateway 10.8.0.1,topology subnet,ping 10,ping-restart 60,route 192.168.100.0 255.255.255.0,"
+                    "route 172.16.0.0 255.240.0.0 10.8.0.1,ifconfig 10.8.0.2 255.255.255.0,peer-id 3,cipher AES-256-GCM,"
+                    "protocol-flags tls-ekm,tun-mtu 1500");
+    PushReply r;
+    PF_REQUIRE(parse_push_reply(msg, r) == PushStatus::Ok);
+    PF_CHECK(r.supported_by_mvp());
+    PF_CHECK_EQ(r.ifconfig_ip, s.ifconfig_ip);
+    PF_CHECK_EQ(r.ifconfig_netmask, s.ifconfig_netmask);
+    PF_CHECK_EQ(r.route_gateway, s.route_gateway);
+    PF_CHECK_EQ(r.peer_id, 3u);
+    PF_CHECK_EQ(r.ping_seconds, 10u);
+    PF_CHECK_EQ(r.ping_restart_seconds, 60u);
+    PF_CHECK_EQ(r.routes.size(), size_t{2});
+    PF_CHECK(r.routes[1].has_gateway);
+    PF_CHECK(r.unknown_options.empty());
+}
+
+PF_TEST(push_build_omits_disabled_keepalive_and_rejects_bad_values) {
+    ServerPush s;
+    s.ifconfig_ip = 0x0A080002; s.ifconfig_netmask = 0xFFFFFF00; s.route_gateway = 0x0A080001;
+    s.ping_seconds = 0; s.ping_restart_seconds = 0;
+    std::string msg;
+    PF_REQUIRE(build_push_reply(s, msg));
+    PF_CHECK(msg.find("ping") == std::string::npos);
+    s.peer_id = 0xFFFFFF;                         // reserved: "no peer-id" on the wire
+    PF_CHECK(!build_push_reply(s, msg));
+    s.peer_id = 0;
+    s.ifconfig_ip = 0;
+    PF_CHECK(!build_push_reply(s, msg));          // a client without an address cannot be served
+    s.ifconfig_ip = 0x0A080002;
+    for (int i = 0; i < 40; ++i) s.routes.push_back({0x0A000000u + (static_cast<uint32_t>(i) << 8), 0xFFFFFF00, true, 0x0A080001});
+    PF_CHECK(!build_push_reply(s, msg));          // longer than kMaxPushReply (no push-continuation yet)
+}
+
+PF_TEST(push_formats_ipv4) {
+    PF_CHECK(format_ipv4(0) == "0.0.0.0");
+    PF_CHECK(format_ipv4(0xFFFFFFFF) == "255.255.255.255");
+    PF_CHECK(format_ipv4(0x0A4D0002) == "10.77.0.2");
+    uint32_t back = 0;
+    for (uint32_t v : {0u, 1u, 0x7F000001u, 0xC0A80101u, 0xFFFFFFFEu}) {
+        PF_REQUIRE(parse_ipv4(format_ipv4(v), back));
+        PF_CHECK_EQ(back, v);
+    }
+}

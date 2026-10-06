@@ -85,6 +85,28 @@ std::unique_ptr<TlsSession> TlsSession::create(const TlsConfig& cfg, std::string
     for (auto& ca : cas)
         if (X509_STORE_add_cert(store, ca.get()) != 1) { error = last_openssl_error(); return nullptr; }
 
+    // Revocation (leaf only).
+    if (!cfg.crl_pem.empty()) {
+        BioPtr b(BIO_new_mem_buf(cfg.crl_pem.data(), static_cast<int>(cfg.crl_pem.size())));
+        int count = 0;
+        while (b) {
+            std::unique_ptr<X509_CRL, Free<X509_CRL, X509_CRL_free>> crl(PEM_read_bio_X509_CRL(b.get(), nullptr, nullptr, nullptr));
+            if (!crl) break;
+            bool issued_by_anchor = false;
+            for (auto& ca : cas) {
+                if (X509_NAME_cmp(X509_CRL_get_issuer(crl.get()), X509_get_subject_name(ca.get())) != 0) continue;
+                EVP_PKEY* pub = X509_get0_pubkey(ca.get());
+                if (pub && X509_CRL_verify(crl.get(), pub) == 1) issued_by_anchor = true;
+            }
+            if (!issued_by_anchor) { error = "CRL is not issued by a configured CA"; ERR_clear_error(); return nullptr; }
+            if (X509_STORE_add_crl(store, crl.get()) != 1) { error = last_openssl_error(); return nullptr; }
+            ++count;
+        }
+        ERR_clear_error();
+        if (count == 0) { error = "crl_pem contains no CRL"; return nullptr; }
+        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
+    }
+
     // Our identity.
     if (!cfg.cert_pem.empty()) {
         auto chain = read_certs(cfg.cert_pem);
@@ -183,6 +205,29 @@ bool TlsSession::export_keying_material(std::string_view label, const uint8_t* c
     if (impl_->state != State::Established) return false;
     return SSL_export_keying_material(impl_->ssl, out, out_len, label.data(), label.size(), context, context_len,
                                       context != nullptr ? 1 : 0) == 1;
+}
+
+std::string TlsSession::peer_common_name() const {
+    if (impl_->state != State::Established) return {};
+    X509* peer = SSL_get0_peer_certificate(impl_->ssl);
+    if (!peer) return {};
+    X509_NAME* n = X509_get_subject_name(peer);
+    const int i = X509_NAME_get_index_by_NID(n, NID_commonName, -1);
+    if (i < 0) return {};
+    ASN1_STRING* d = X509_NAME_ENTRY_get_data(X509_NAME_get_entry(n, i));
+    unsigned char* utf8 = nullptr;
+    const int len = ASN1_STRING_to_UTF8(&utf8, d);
+    if (len < 0) return {};
+    std::string out(reinterpret_cast<char*>(utf8), static_cast<size_t>(len));
+    OPENSSL_free(utf8);
+    return out;
+}
+
+bool TlsSession::peer_certificate_sha256(std::array<uint8_t, 32>& out) const {
+    if (impl_->state != State::Established) return false;
+    X509* peer = SSL_get0_peer_certificate(impl_->ssl);
+    unsigned int n = 0;
+    return peer && X509_digest(peer, EVP_sha256(), out.data(), &n) == 1 && n == out.size();
 }
 
 std::string TlsSession::protocol_version() const { return SSL_get_version(impl_->ssl); }

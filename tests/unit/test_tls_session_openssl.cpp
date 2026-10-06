@@ -194,3 +194,67 @@ PF_TEST(tls_exported_keying_material_differs_between_sessions) {
     PF_REQUIRE(q.cli->export_keying_material("L", nullptr, 0, b, sizeof b));
     PF_CHECK(std::memcmp(a, b, sizeof a) != 0);
 }
+
+PF_TEST(tls_server_rejects_a_revoked_client_certificate) {
+    TlsConfig s = server_cfg();
+    s.crl_pem = pki().crl_pem;
+    TlsConfig c = client_cfg();
+    c.cert_pem = pki().revoked_client_cert_pem; c.key_pem = pki().revoked_client_key_pem;
+    Pair p(c, s);
+    p.pump();
+    PF_CHECK(p.srv->state() == TlsSession::State::Failed);
+    PF_CHECK(p.srv->failure_reason().find("revoked") != std::string::npos);
+}
+
+PF_TEST(tls_server_with_a_crl_still_accepts_certificates_not_on_it) {
+    TlsConfig s = server_cfg();
+    s.crl_pem = pki().crl_pem;
+    Pair p(client_cfg(), s);
+    p.pump();
+    PF_CHECK(p.srv->state() == TlsSession::State::Established);
+    PF_CHECK(p.cli->state() == TlsSession::State::Established);
+}
+
+PF_TEST(tls_revoked_certificate_is_accepted_without_a_crl) {   // control: the CRL is what rejects it
+    TlsConfig c = client_cfg();
+    c.cert_pem = pki().revoked_client_cert_pem; c.key_pem = pki().revoked_client_key_pem;
+    Pair p(c, server_cfg());
+    p.pump();
+    PF_CHECK(p.srv->state() == TlsSession::State::Established);
+}
+
+PF_TEST(tls_create_rejects_a_bad_crl) {
+    std::string err;
+    TlsConfig s = server_cfg();
+    s.crl_pem = "-----BEGIN X509 CRL-----\nnot base64\n-----END X509 CRL-----\n";
+    PF_CHECK(TlsSession::create(s, err) == nullptr);
+    s.crl_pem = pki().client_cert_pem;                         // a certificate is not a CRL
+    PF_CHECK(TlsSession::create(s, err) == nullptr);
+    s.crl_pem = pki().other_ca_crl_pem;                        // issued by a CA we do not trust: would never match
+    PF_CHECK(TlsSession::create(s, err) == nullptr);
+}
+
+PF_TEST(tls_reports_the_peer_identity) {
+    Pair p(client_cfg(), server_cfg());
+    std::array<uint8_t, 32> fp{};
+    PF_CHECK(!p.srv->peer_certificate_sha256(fp));             // nothing before the handshake
+    p.pump();
+    PF_CHECK(p.srv->peer_common_name() == "pf-client");
+    PF_CHECK(p.cli->peer_common_name() == "pf-server");
+    PF_REQUIRE(p.srv->peer_certificate_sha256(fp));
+
+    Pair q(client_cfg(), server_cfg());                        // same certificate: same fingerprint
+    q.pump();
+    std::array<uint8_t, 32> fq{};
+    PF_REQUIRE(q.srv->peer_certificate_sha256(fq));
+    PF_CHECK(fp == fq);
+
+    TlsConfig c2 = client_cfg();                               // another certificate: another fingerprint
+    c2.cert_pem = pki().client2_cert_pem; c2.key_pem = pki().client2_key_pem;
+    Pair r(c2, server_cfg());
+    r.pump();
+    std::array<uint8_t, 32> fr{};
+    PF_REQUIRE(r.srv->peer_certificate_sha256(fr));
+    PF_CHECK(fp != fr);
+    PF_CHECK(r.srv->peer_common_name() == "pf-client-2");
+}

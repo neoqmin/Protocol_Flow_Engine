@@ -136,7 +136,7 @@ bool TlsCryptChannel::wrap(uint8_t op_keyid, const uint8_t session_id[8], const 
     return true;
 }
 
-TlsCryptStatus TlsCryptChannel::unwrap(const uint8_t* wire, size_t len, TlsCryptPlain& out) {
+TlsCryptStatus TlsCryptChannel::open(const uint8_t* wire, size_t len, TlsCryptPlain& out) const {
     TlsCryptPlain p;
     TlsCryptStatus st = tls_crypt_open(keys_.rx, wire, len, p);
     if (st != TlsCryptStatus::Ok) return st;
@@ -144,14 +144,24 @@ TlsCryptStatus TlsCryptChannel::unwrap(const uint8_t* wire, size_t len, TlsCrypt
     // Authenticated: now apply replay rules. A newer net_time starts a fresh window.
     if (p.net_time < rx_time_) return TlsCryptStatus::Replay;
     if (p.net_time == rx_time_ && rx_window_.check(p.packet_id) != ReplayStatus::Ok) return TlsCryptStatus::Replay;
-    if (p.net_time > rx_time_) {
-        if (p.packet_id == 0) return TlsCryptStatus::Replay;
-        rx_window_.reset();
-        rx_time_ = p.net_time;
-    }
-    rx_window_.commit(p.packet_id);
+    if (p.net_time > rx_time_ && p.packet_id == 0) return TlsCryptStatus::Replay;
     out = std::move(p);
     return TlsCryptStatus::Ok;
+}
+
+void TlsCryptChannel::commit(uint32_t net_time, uint32_t packet_id) {
+    if (net_time < rx_time_) return;
+    if (net_time > rx_time_) {
+        rx_window_.reset();
+        rx_time_ = net_time;
+    }
+    rx_window_.commit(packet_id);
+}
+
+TlsCryptStatus TlsCryptChannel::unwrap(const uint8_t* wire, size_t len, TlsCryptPlain& out) {
+    const TlsCryptStatus st = open(wire, len, out);
+    if (st == TlsCryptStatus::Ok) commit(out.net_time, out.packet_id);
+    return st;
 }
 
 }  // namespace pf

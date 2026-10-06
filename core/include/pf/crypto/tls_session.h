@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -18,6 +19,10 @@ struct TlsConfig {
     // Peer certificate must be usable for the peer's role (serverAuth / clientAuth EKU + key usage),
     // like OpenVPN's --remote-cert-tls. Turning it off accepts any purpose.
     bool require_peer_eku = true;
+    // Certificate revocation list(s) for the PEER's chain (PEM, one or more). Empty = no revocation check.
+    // Every CRL must be issued by one of the ca_pem anchors (a CRL that can never match is a configuration error).
+    // Only the peer's leaf certificate is checked (like OpenVPN's crl-verify).
+    std::string crl_pem;
     bool tls13_only = true;      // OpenVPN 2.6 profile (D-008): TLS 1.3 only
     bool cap_at_tls12 = false;   // TEST HOOK: behave like a TLS 1.2-only peer
 };
@@ -49,6 +54,11 @@ public:
     // RFC 5705 / RFC 8446 exporter. Only after Established. `context` may be null (no context).
     bool export_keying_material(std::string_view label, const uint8_t* context, size_t context_len,
                                 uint8_t* out, size_t out_len) const;
+
+    // The peer's verified leaf certificate (only after Established): its subject CN ("" if none) and the SHA-256 of
+    // its DER encoding. A server pins the fingerprint across renegotiations (D-048).
+    std::string peer_common_name() const;
+    bool peer_certificate_sha256(std::array<uint8_t, 32>& out) const;
 
     std::string protocol_version() const;           // e.g. "TLSv1.3"
     std::string failure_reason() const;

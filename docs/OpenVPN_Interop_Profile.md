@@ -70,7 +70,7 @@ tail 8B가 키 재료의 어느 구간에서 오는지는 `[검증]`(A3).
 | Legacy opcode 1, 2, 6 | 파서는 인식, **Policy Block이 거부** |
 | CBC 계열 / BF-CBC, 압축(comp-lzo, compress) | 보안/복잡도 |
 | TAP, 브리징 | PM-5 |
-| `auth-user-pass`, 플러그인 인증, 챌린지 | 인증서 인증만 |
+| `auth-user-pass`, 플러그인 인증, 챌린지 | MVP는 인증서 인증만. PM-11(D-048): `ControlClient`가 key-method 2에 사용자 이름/비밀번호를 싣는다(`pf_client` 옵션과 수정 없는 서버 상호운용은 미검증). 서버 쪽은 V1 비동기 결정 + V6 외부 훅. 플러그인·챌린지는 미지원 |
 | IPv6 터널 옵션, 고급 라우팅 옵션 | 필요 시 추가 |
 | TCP | MVP-B ✅ (B2: 수정 없는 2.6.19 `tcp-server`와 터널·재협상 상호운용, B3: UDP 무음 차단 시 자동 폴백) |
 | DCO 연동 | PM-8 |

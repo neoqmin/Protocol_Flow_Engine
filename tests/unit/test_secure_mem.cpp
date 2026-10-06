@@ -25,3 +25,22 @@ PF_TEST(constant_time_equal_matches_memcmp_semantics) {
     PF_CHECK(ct_equal(a, c, 3));      // only first 3 bytes compared
     PF_CHECK(ct_equal(a, c, 0));
 }
+
+#include "pf/secret.h"
+
+PF_TEST(secret_string_holds_moves_and_wipes) {
+    pf::SecretString a("hunter2");
+    PF_CHECK_EQ(a.size(), size_t{7});
+    PF_CHECK(a.reveal() == "hunter2");
+    pf::SecretString b(std::move(a));
+    PF_CHECK(a.empty());                                   // the source no longer holds it
+    PF_CHECK(a.reveal().empty());
+    PF_CHECK(b.reveal() == "hunter2");
+    pf::SecretString c;
+    c = std::move(b);
+    PF_CHECK(b.empty());
+    PF_CHECK(c.reveal() == "hunter2");
+    c.wipe();
+    PF_CHECK(c.empty());
+    PF_CHECK(pf::SecretString("").empty());
+}

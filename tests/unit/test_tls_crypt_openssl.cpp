@@ -199,3 +199,22 @@ PF_TEST(channel_refuses_to_wrap_when_packet_id_space_is_exhausted) {
     PF_CHECK(cli.wrap(0x20, SID, nullptr, 0, 1, w));
     PF_CHECK(!cli.wrap(0x20, SID, nullptr, 0, 1, w));          // never reuse (key, iv) material
 }
+
+PF_TEST(tls_crypt_open_checks_replay_without_changing_state_until_commit) {
+    TlsCryptChannel cli(derive_tls_crypt_keys(test_key(), TlsCryptRole::Client));
+    TlsCryptChannel srv(derive_tls_crypt_keys(test_key(), TlsCryptRole::Server));
+    const uint8_t sid[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    const uint8_t pl[3] = {9, 9, 9};
+    std::vector<uint8_t> later, earlier;
+    PF_REQUIRE(cli.wrap(0x38, sid, pl, sizeof pl, 2000, later));
+    PF_REQUIRE(cli.wrap(0x38, sid, pl, sizeof pl, 1000, earlier));
+    TlsCryptPlain p;
+    PF_CHECK(srv.open(later.data(), later.size(), p) == TlsCryptStatus::Ok);       // not committed:
+    PF_CHECK(srv.open(earlier.data(), earlier.size(), p) == TlsCryptStatus::Ok);   // the earlier time still passes
+    PF_CHECK(srv.open(later.data(), later.size(), p) == TlsCryptStatus::Ok);       // and so does the same packet again
+    srv.commit(p.net_time, p.packet_id);
+    PF_CHECK(srv.open(later.data(), later.size(), p) == TlsCryptStatus::Replay);
+    PF_CHECK(srv.open(earlier.data(), earlier.size(), p) == TlsCryptStatus::Replay);  // older window now
+    srv.commit(1000, 2);                                                           // a stale commit changes nothing
+    PF_CHECK(srv.open(later.data(), later.size(), p) == TlsCryptStatus::Replay);
+}

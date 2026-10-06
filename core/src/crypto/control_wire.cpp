@@ -24,4 +24,23 @@ OpenControlStatus open_control_packet(TlsCryptChannel& ch, const uint8_t* d, siz
                : OpenControlStatus::Malformed;
 }
 
+OpenControlStatus open_control_packet_deferred(const TlsCryptChannel& ch, const uint8_t* d, size_t n, ControlPacket& out,
+                                               ReplayTicket& ticket) {
+    if (d == nullptr || n < 1 || !is_control_opcode(d[0] >> 3)) return OpenControlStatus::NotControl;
+    TlsCryptPlain plain;
+    switch (ch.open(d, n, plain)) {
+        case TlsCryptStatus::Ok: break;
+        case TlsCryptStatus::Replay: return OpenControlStatus::Replay;
+        case TlsCryptStatus::Truncated:
+        case TlsCryptStatus::AuthFailed: return OpenControlStatus::AuthFailed;
+    }
+    ticket = ReplayTicket{plain.net_time, plain.packet_id};
+    return parse_control(plain.op_keyid, plain.session_id, plain.payload.data(), plain.payload.size(), out) ==
+                   ControlParseStatus::Ok
+               ? OpenControlStatus::Ok
+               : OpenControlStatus::Malformed;
+}
+
+void commit_control_packet(TlsCryptChannel& ch, const ReplayTicket& ticket) { ch.commit(ticket.net_time, ticket.packet_id); }
+
 }  // namespace pf
