@@ -92,6 +92,11 @@ struct FlowJsonResult {
     int64_t migrated_from = 0;                          // != 0: the file was version N and has been upgraded in memory
 };
 
+// Shared by every versioned document format (protocol-flow, protocol-machine): checks "version" and applies the
+// migrators step by step (rules above). false = the document cannot be brought to `current_version` (errors say why).
+bool upgrade_document(JsonValue& root, const FlowMigrations* migrations, int64_t current_version, int64_t min_version,
+                      std::vector<FlowJsonError>& errors, int64_t& migrated_from);
+
 // `current_version` / `min_version` exist so the upgrade machinery is testable before a v2 exists; production callers
 // use the defaults.
 FlowJsonResult parse_flow_json(std::string_view text, const FlowMigrations* migrations = nullptr,

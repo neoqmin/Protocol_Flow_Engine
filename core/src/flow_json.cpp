@@ -253,6 +253,39 @@ bool is_valid_flow_id(std::string_view s) {
     return true;
 }
 
+bool upgrade_document(JsonValue& root, const FlowMigrations* migrations, int64_t current_version, int64_t min_version,
+                      std::vector<FlowJsonError>& errors, int64_t& migrated_from) {
+    const JsonValue* ver = root.find("version");
+    if (!ver) { errors.push_back({FlowJsonErrorCode::MissingField, "/version", "required field \"version\" is missing"}); return false; }
+    if (!ver->is_integer() || ver->as_int() < 1) { errors.push_back({FlowJsonErrorCode::WrongType, "/version", "version must be a positive integer"}); return false; }
+    int64_t v = ver->as_int();
+    if (v > current_version) {
+        errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version",
+                          "file version " + std::to_string(v) + " is newer than this build supports (" + std::to_string(current_version) + "): upgrade the software"});
+        return false;
+    }
+    if (v < min_version) {
+        errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version", "file version " + std::to_string(v) + " is older than the oldest supported (" + std::to_string(min_version) + ")"});
+        return false;
+    }
+    const int64_t original = v;
+    while (v < current_version) {
+        const FlowMigrations::Migrator* step = migrations ? migrations->find(v) : nullptr;
+        if (!step) {
+            errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version", "no migration from version " + std::to_string(v) + " to " + std::to_string(v + 1)});
+            return false;
+        }
+        std::string why;
+        if (!(*step)(root, why)) {
+            errors.push_back({FlowJsonErrorCode::MigrationFailed, "", "migration " + std::to_string(v) + " -> " + std::to_string(v + 1) + " failed: " + why});
+            return false;
+        }
+        ++v;                                                    // the engine tracks the version; the "version" member is not read again
+    }
+    if (original != current_version) migrated_from = original;
+    return true;
+}
+
 FlowJsonResult parse_flow_json(std::string_view text, const FlowMigrations* migrations, int64_t current_version, int64_t min_version) {
     FlowJsonResult r;
     JsonParseResult jp = parse_json(text);
@@ -264,34 +297,7 @@ FlowJsonResult parse_flow_json(std::string_view text, const FlowMigrations* migr
     if (!root.is_object()) { r.errors.push_back({FlowJsonErrorCode::NotAnObject, "", "a Flow file must be a JSON object"}); return r; }
 
     // Version first: an old or new file may have a different shape, so it cannot be judged against this schema yet.
-    const JsonValue* ver = root.find("version");
-    if (!ver) { r.errors.push_back({FlowJsonErrorCode::MissingField, "/version", "required field \"version\" is missing"}); return r; }
-    if (!ver->is_integer() || ver->as_int() < 1) { r.errors.push_back({FlowJsonErrorCode::WrongType, "/version", "version must be a positive integer"}); return r; }
-    int64_t v = ver->as_int();
-    if (v > current_version) {
-        r.errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version",
-                            "file version " + std::to_string(v) + " is newer than this build supports (" + std::to_string(current_version) + "): upgrade the software"});
-        return r;
-    }
-    if (v < min_version) {
-        r.errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version", "file version " + std::to_string(v) + " is older than the oldest supported (" + std::to_string(min_version) + ")"});
-        return r;
-    }
-    const int64_t original = v;
-    while (v < current_version) {
-        const FlowMigrations::Migrator* step = migrations ? migrations->find(v) : nullptr;
-        if (!step) {
-            r.errors.push_back({FlowJsonErrorCode::UnsupportedVersion, "/version", "no migration from version " + std::to_string(v) + " to " + std::to_string(v + 1)});
-            return r;
-        }
-        std::string why;
-        if (!(*step)(root, why)) {
-            r.errors.push_back({FlowJsonErrorCode::MigrationFailed, "", "migration " + std::to_string(v) + " -> " + std::to_string(v + 1) + " failed: " + why});
-            return r;
-        }
-        ++v;                                                    // the engine tracks the version; the "version" member is not read again
-    }
-    if (original != current_version) r.migrated_from = original;
+    if (!upgrade_document(root, migrations, current_version, min_version, r.errors, r.migrated_from)) return r;
 
     Loader(r).load(root, r.doc);
     r.doc.version = current_version;

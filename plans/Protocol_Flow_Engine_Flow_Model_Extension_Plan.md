@@ -1,7 +1,7 @@
 # Protocol Flow Engine — Flow 모델 확장 계획 (State Machine · Context 일반화 · Trace)
 
 - 작성일: 2026-10-06
-- 상태: **방향 확정(D-040), 세부 설계는 PM-4 진입 시 확정**
+- 상태: **방향 확정(D-040). F-1 S0~S4 구현 완료(D-041, 2026-10-06)**: 형식은 `docs/Machine_JSON_Schema_v1.md`, 코드는 `core/include/pf/machine.h`·`machine_json.h`·`keepalive_machine.h`. 실제로 구현한 범위가 아래 초안과 다른 부분은 §3.2.1에 정리했다
 - 관련: D-009(MVP Control Plane은 일반 코드), D-019(Block 결과 계약), D-035/D-036(Flow JSON v1·Validator), D-039(NAT 계획 채택 범위)
 - 계기: `plans/Protocol_Flow_Engine_NAT_Traversal_Lab_Development_Plan.md` §5(State/Timer), §15(Packet Trace). 하지만 이 계획의 대상은 **NAT 전용이 아니다**. OpenVPN 제어 채널(재전송·재협상·keepalive), 폴백, 앞으로 들어올 모든 프로토콜에 똑같이 적용된다.
 
@@ -97,6 +97,14 @@ MachineRunner::next_deadline_ms()   // 가장 이른 타이머 (호출자가 pol
 | 카운터 | `{name, max}` 필수. 증가는 전이 액션으로만 하고, `max`를 넘는 증가는 guard로 막아야 한다 |
 | 타이머 | `{name, duration_ms | from_param}`. 범위 `[1ms, 24h]`. `arm`/`cancel`은 전이 액션으로만 한다 |
 | 하위 Machine | `spawn`으로 실행하고 결과는 `child:*` 이벤트로 받는다. NAT Traversal → VPN Session 같은 합성(NAT 계획 §24)을 이렇게 표현한다 |
+
+### 3.2.1 v1 구현 범위 (D-041)
+
+위 표는 초안이다. v1에서 구현한 범위는 다음과 같다.
+- 이벤트: `packet:`·`command:`·`timer:`·`auto`
+- guard: 카운터 비교 `<` / `>=`만
+- actions: `inc`/`reset`/`arm`/`cancel`/`emit`
+- 나중으로 미룬 것(필요해지는 첫 사용처에서 결정): **변수(`Endpoint`/`KeyRef` 등), 하위 Machine `spawn`과 `child:` 이벤트, Decision 블록 guard**. 그때까지 분기는 "분류 Flow가 서로 다른 `packet:<분류>` 이벤트를 만든다"는 방식으로 표현한다.
 
 ### 3.3 기존 Block 결과 계약과의 관계
 
@@ -207,11 +215,11 @@ NAT 계획 §15의 trace, 에디터의 "어느 노드에서 Drop됐나" 표시, 
 
 | 단계 | 내용 | 종료 조건 |
 |---|---|---|
-| S0 | 이 문서 리뷰, 실행 의미·Validator 규칙 확정 | DECISIONS에 PM-4 세부 결정 기록 |
-| S1 | `MachineRunner`(sans-I/O, 가짜 시계·난수) + 코드로 정의하는 `MachineBuilder` | 단위 테스트: 전이, Drop 비전이, Error 종료, 타이머 순서, 큐 상한 |
-| S2 | Machine Validator (§4 전체) | 유효/무효 Machine 케이스 + **무작위 Machine 차등 테스트**(Validator가 통과시킨 것은 무작위 이벤트열에서 반드시 final 또는 정상 대기로 끝나야 함) |
-| S3 | `protocol-machine` v1 로더/라이터 + 마이그레이션 규칙(Flow JSON v1 §7과 동일) | 스키마 테스트, fuzz 타깃(`fuzz_machine_load`) |
-| S4 | 동등성: `KeepaliveTimer`를 Machine으로 표현 → 기존 코드와 차등 테스트 | 무작위 이벤트·시간열에서 출력 동일, 변이 검출 |
+| S0 ✅ | 이 문서 리뷰, 실행 의미·Validator 규칙 확정 | DECISIONS에 PM-4 세부 결정 기록 (D-041) |
+| S1 ✅ | `MachineRunner`(sans-I/O, 가짜 시계) + 코드로 정의하는 `MachineBuilder` | 단위 테스트: 전이, Drop 비전이, Error 종료, 타이머 순서, auto 연쇄 상한 (`tests/flow/test_machine_runner.cpp`). v1에는 내부 이벤트 큐가 없어서(이벤트를 만들어내는 action이 없음) 큐 상한도 필요 없다. 난수 주입은 첫 사용처(S7)에서 |
+| S2 ✅ | Machine Validator (§4 전체, `tests/unit/test_machine_validator.cpp`) | 유효/무효 Machine 케이스 + **무작위 Machine 차등 테스트**(Validator가 통과시킨 것은 무작위 이벤트열에서 반드시 final 또는 정상 대기로 끝나야 함) |
+| S3 ✅ | `protocol-machine` v1 로더/라이터 + 마이그레이션 규칙(Flow JSON v1 §7과 동일, `upgrade_document` 공유) | 스키마 테스트, fuzz 타깃(`fuzz_machine_load`) |
+| S4 ✅ | 동등성: `KeepaliveTimer`를 Machine으로 표현 → 기존 코드와 차등 테스트 (`tests/flow/test_machine_keepalive.cpp`, 골든 `machine_keepalive.machine.json`) | 무작위 이벤트·시간열에서 출력 동일, 변이 검출 |
 | S5 | F-3 Trace (`run_flow` + `MachineRunner`) | 비공개 규칙 테스트, 성능 측정(trace 끔 상태 기준선 유지) |
 | S6 | F-2 Context 일반화 | §6 종료 조건 |
 | S7 | 첫 실제 사용처: STUN binding transaction Machine (PM-2 N3와 함께) | 실제 STUN 서버 상대 상호운용 |
@@ -220,8 +228,8 @@ S5·S6은 S1~S4와 독립이다. PM-2가 먼저 시작되면 S6 → S5 순서로
 
 ## 10. 열린 질문 (PM-4 진입 시 결정)
 
-1. 계층 상태(Harel statechart의 중첩 상태·병렬 영역)까지 지원할지, 평평한 상태 + 하위 Machine `spawn`만으로 충분할지 (권장: 평평 + spawn으로 시작)
-2. guard 표현식의 범위: 카운터 비교와 Decision 블록만으로 충분한지
+1. ~~계층 상태 지원 여부~~ → D-041: v1은 **평평한 상태만**. `spawn`(하위 Machine)은 첫 합성 사용처(PM-2 N7 또는 NAT→VPN)에서 결정
+2. ~~guard 범위~~ → D-041: v1은 **카운터 비교(`<`, `>=`)만**. Decision 블록 guard는 필요해지면 추가(종료 판정에 영향 없음)
 3. 텍스트 DSL(PM-4의 원래 범위)에서 Machine을 어떻게 표기할지
 4. 에디터(PM-6)에서 상태 다이어그램과 패킷 Flow 캔버스를 한 화면에 둘지, 드릴다운으로 나눌지
 5. 여러 Machine 인스턴스(ICE의 후보 쌍마다 하나)의 스케줄링과 자원 한도

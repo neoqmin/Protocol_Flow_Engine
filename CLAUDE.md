@@ -18,6 +18,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - MVP 프로토콜 범위: `docs/OpenVPN_Interop_Profile.md`
 - Linux 클라이언트(A4/B: Transport·폴백·TUN, `pf_client`): `docs/Linux_Client_Notes.md`
 - Flow JSON 형식·버전 규칙: `docs/Flow_JSON_Schema_v1.md`
+- State Machine 형식·실행 의미·검증 규칙(`protocol-machine` v1): `docs/Machine_JSON_Schema_v1.md` (D-041)
 - 위협 모델·키 관리·라이선스(clean-room): `docs/Threat_Model_and_Key_Management.md`
 - **전체 결정 기록: `docs/DECISIONS.md`** (@docs/DECISIONS.md)
 
@@ -31,7 +32,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 언어 **C++17 확정**(D-013), TLS/암호는 **OpenSSL 3.x**(D-014, MVP-A)
 - 제품 방향은 VPN 엔진 유지. NAT Traversal은 PM-2b(참고 범위, 진입 시 재논의), "Protocol Lab" 제품 라인은 PM-6·PM-7 이후 재검토(D-039)
 - MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
-- Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
+- Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). v1 구현: 평평한 상태, 카운터 guard, Dropped=비전이·Errored=실패, Validator가 무한 재시도·livelock 거부(D-041). `TunnelSession`은 아직 `KeepaliveTimer` 사용(동등성만 증명). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
 - 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지
 
 ## 빌드 / 테스트

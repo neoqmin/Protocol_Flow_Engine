@@ -1,0 +1,82 @@
+{
+  "format": "protocol-machine",
+  "version": 1,
+  "machine": {
+    "name": "keepalive",
+    "description": "OpenVPN data-channel keepalive (ping / ping-restart) as a state machine; equivalent to KeepaliveTimer"
+  },
+  "events": [
+    "packet:sent",
+    "packet:received"
+  ],
+  "outputs": [
+    "ping"
+  ],
+  "timers": [
+    {
+      "name": "restart",
+      "param": "restartMs",
+      "allowDisabled": true
+    },
+    {
+      "name": "ping",
+      "param": "pingMs",
+      "allowDisabled": true
+    }
+  ],
+  "states": [
+    {
+      "id": "init",
+      "initial": true
+    },
+    {
+      "id": "alive"
+    },
+    {
+      "id": "dead",
+      "final": "failed"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "init",
+      "on": "auto",
+      "actions": [
+        "arm:restart",
+        "arm:ping"
+      ],
+      "to": "alive"
+    },
+    {
+      "from": "alive",
+      "on": "packet:sent",
+      "actions": [
+        "arm:ping"
+      ],
+      "to": "alive"
+    },
+    {
+      "from": "alive",
+      "on": "packet:received",
+      "actions": [
+        "arm:restart"
+      ],
+      "to": "alive"
+    },
+    {
+      "from": "alive",
+      "on": "timer:restart",
+      "to": "dead"
+    },
+    {
+      "from": "alive",
+      "on": "timer:ping",
+      "actions": [
+        "emit:ping",
+        "arm:ping"
+      ],
+      "to": "alive",
+      "unbounded": "keepalive pings for the whole session; the restart timer or the session ends it"
+    }
+  ]
+}

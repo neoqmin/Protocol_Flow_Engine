@@ -90,6 +90,8 @@
 
 ### 8.2 Flow 모델 확장 (F-1 ~ F-3)
 
+F-1 v1(D-041)에서 아래 첫 두 행은 **구현·테스트 완료**다(`docs/Machine_JSON_Schema_v1.md` §2, §4).
+
 | 위협 | 대응(안) |
 |---|---|
 | 악성/잘못된 State Machine으로 무한 재시도·livelock(DoS) | Validator가 실행 전 거부: `NoExit`, `ImmediateCycle`, `UnboundedRetry`, `WaitWithoutTimeout`. 런타임은 이벤트 큐 상한과 타이머 범위를 강제 |
