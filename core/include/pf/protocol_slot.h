@@ -15,6 +15,7 @@ using ProtocolId = uint16_t;
 // Protocol ids (stable, like block ids): 0 = none.
 inline constexpr ProtocolId kProtocolNone = 0;
 inline constexpr ProtocolId kProtocolOpenVpn = 1;
+inline constexpr ProtocolId kProtocolStun = 2;     // STUN/TURN (PM-2b, D-045)
 
 inline constexpr size_t kProtocolSlotBytes = 128;
 

@@ -239,5 +239,5 @@
 | Stuntman | RFC 5780 동작 탐지 서버/클라이언트 (동작 비교) | Apache-2.0 | ⚠️ https://github.com/jselbie/stunserver |
 | libjuice | 경량 ICE/STUN/TURN (동작 비교) | MPL-2.0 | ⚠️ https://github.com/paullouisageneau/libjuice |
 | libnice | ICE (GLib) (동작 비교) | LGPL-2.1 / MPL-1.1 | ⚠️ https://gitlab.freedesktop.org/libnice/libnice |
-| pion (ice/stun/turn) | Go 구현, 테스트 피어 후보 | MIT | ⚠️ https://github.com/pion |
+| pion (ice/stun/turn) | Go 구현, 테스트 피어 후보. **N1에서 RFC 5769 벡터 바이트의 출처로 사용**(rfc-editor.org가 이 환경의 프록시에서 막혀 `rfc5769_test.go`에서 바이트만 추출, 코드는 사용하지 않음, D-045) | MIT(파일의 SPDX 헤더로 확인) | ✅ https://raw.githubusercontent.com/pion/stun/master/rfc5769_test.go |
 | miniupnpc | UPnP IGD 클라이언트 (후속 비교) | BSD-3-Clause | ⚠️ https://github.com/miniupnp/miniupnp |

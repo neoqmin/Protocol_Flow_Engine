@@ -128,7 +128,7 @@ Flow 파일의 `params`를 받는 블록은 `BlockDescriptor::params`(`ParamSpec
 
 **프로토콜 슬롯** (`pf/protocol_slot.h`)
 - `FlowContext::proto`에는 한 번에 한 프로토콜의 상태만 들어간다.
-- 슬롯 타입은 plain data(trivially copyable) 구조체이고 크기는 128바이트 이하다. `static constexpr ProtocolId kProtocolId`를 가지며, 이 값은 블록 id처럼 **재번호하지 않는다**. 현재 1 = OpenVPN.
+- 슬롯 타입은 plain data(trivially copyable) 구조체이고 크기는 128바이트 이하다. `static constexpr ProtocolId kProtocolId`를 가지며, 이 값은 블록 id처럼 **재번호하지 않는다**. 현재 1 = OpenVPN(`OvpnSlot`), 2 = STUN(`StunSlot`, `pf/stun_context.h`, D-045).
 - `get<T>()`: 슬롯이 T를 담고 있으면 그것을, 아니면 `nullptr`을 돌려준다.
 - `emplace<T>()`: 새 T로 시작한다. **파서 블록은 항상 이것을 쓴다.** 이전 패킷의 상태가 파싱 실패 뒤에 남지 않게 하기 위함이다.
 - `as<T>()`: 이미 T가 있으면 그대로 쓰고, 없으면 새로 만든다.
@@ -156,6 +156,8 @@ Flow 파일의 `params`를 받는 블록은 `BlockDescriptor::params`(`ParamSpec
 | 10 | `replay_commit` | `key`, `ovpn.data_v2` | |
 | 11 | `lookup_tx_key` | `ovpn.header` | `key` |
 | 12 | `aead_encrypt` | `key`, `ovpn.header` | |
+| 13 | `is_stun` (Decision) | | |
+| 14 | `parse_stun` | | `stun.message` |
 
 - TX Flow는 `ovpn.header`를 **입력**으로 선언한다. 호출자가 `set_ovpn_header`로 넣는 값이다.
 - 런타임 방어선도 그대로 둔다. 블록은 슬롯이 없거나 필요한 부분이 무효이면 `Error(Internal)`을 낸다. 배선 버그를 입력 오류로 오인하지 않기 위함이다.

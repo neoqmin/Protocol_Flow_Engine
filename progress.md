@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1 State Machine — D-041, F-3 Trace — D-042, F-2 Context 일반화 — D-043)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 STUN 코덱 — D-045)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -23,7 +23,8 @@
 - [x] **F-3 / S5 Trace** — `TraceSink`/`TraceRing`, `run_flow`·`MachineRunner` 기록, JSON Lines, `pf_client --trace` (D-042)
 - [x] **F-2 / S6 FlowContext 일반화** — 프로토콜 슬롯 + 블록 컨텍스트 계약(consumes/produces) + `ContextNotProduced` 검사 (D-043)
 - [x] **PM-2 진입 논의(N0)** — OpenVPN 호환 서버(PM-11 신설), 연결 서버 `pf_connectd`(STUN + 자체 TURN + rendezvous), coturn 양방향 상호운용, 순서 ① N1~N3 → ② PM-11 → ③ N4~N8 (D-044)
-- [ ] **다음: PM-2b / N1 STUN 코덱** (RFC 8489, RFC 5769 벡터, `StunSlot`, STUN/OpenVPN 구분 블록, fuzz)
+- [x] **PM-2b / N1 STUN 코덱** — RFC 8489 코덱 + RFC 5769 벡터 4개(바이트 단위 재현) + `StunSlot` + `is_stun`/`parse_stun` 블록 + fuzz (D-045)
+- [ ] **다음: PM-2b / N2 메모리 NAT 시뮬레이터** (RFC 4787 매핑 3 × 필터링 3, timeout, 포트 할당, hairpin)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -185,7 +186,14 @@
 - [~] PM-2 네트워크 우회 — 범위 확정(D-044, [docs/PM2_NAT_Traversal_Scope.md](docs/PM2_NAT_Traversal_Scope.md) §6~§7). **2b 먼저**
   - [x] N0 진입 논의 (D-044)
   - ① STUN 기초
-    - [ ] N1 STUN 코덱 (RFC 8489, RFC 5769 벡터, `StunSlot`, STUN/OpenVPN 첫 바이트 구분, fuzz) — 선행 F-2 ✅
+    - [x] N1 STUN 코덱 (D-045)
+      - [x] 코덱(OpenSSL 없음): 헤더·속성 TLV·주소/XOR 주소·ERROR-CODE·UNKNOWN-ATTRIBUTES·FINGERPRINT(CRC-32)·빌더, MI 뒤 속성 무시 규칙, 미지 required 속성 보고
+      - [x] `StunHmac`(OpenSSL): MI(HMAC-SHA1)·MI-SHA256(절단 허용) 검증·생성, 장기 자격증명 키(MD5/SHA-256)
+      - [x] **RFC 5769 §2.1~2.4 벡터 4개**: 구조·주소·RFC 자격증명 검증·**빌더로 바이트 단위 재현**, 비트 반전 전수(FINGERPRINT·MI 영역)
+      - [x] `looks_like_stun`(첫 바이트 0..3 + cookie, 256가지 전수, OpenVPN과 겹치지 않음), `StunSlot`(`ProtocolId` 2), 블록 13 `is_stun`·14 `parse_stun`, 오류 코드 `Malformed`·`ChecksumFailed`
+      - [x] 공유 소켓 Flow 테스트: RFC 벡터는 STUN 쪽, 실제 OpenVPN 2.6.19 골든 패킷 17개는 OpenVPN 쪽
+      - [x] 테스트 24개, `fuzz_stun` 120초 약 1,500만 회 무결함, 변이 14개 중 13개 검출(1개 동등 변이), ASan/UBSan·OpenSSL 없는 빌드 통과
+      - [ ] 후속(필요 시): SASLprep/OpaqueString, USERHASH, PASSWORD-ALGORITHMS, ALTERNATE-SERVER
     - [ ] N2 메모리 NAT 시뮬레이터 (RFC 4787 매핑 3 × 필터링 3, timeout, 포트 할당)
     - [ ] N3 STUN 클라이언트 Machine + 동작 탐지 (RFC 5780), 수정 없는 coturn 상호운용
   - ② PM-11 OpenVPN 호환 서버 (아래)

@@ -62,7 +62,7 @@ hole punching으로 만든 NAT 매핑을 OpenVPN 데이터에 그대로 쓰려�
 
 | [NAT 계획] | 이 저장소 |
 |---|---|
-| `protocols/stun`, `turn`, `ice` | `core/include/pf/stun/`, `core/src/stun/` (코덱·sans-I/O 클라이언트). Block은 `core/src/blocks/stun_blocks.cpp` |
+| `protocols/stun`, `turn`, `ice` | 코덱 `core/include/pf/stun.h`·`core/src/stun.cpp`(기존처럼 평평한 파일 구조), 슬롯 `pf/stun_context.h`, HMAC `pf/crypto/stun_hmac.h`, 블록 `pf/blocks/stun_blocks.h` (N1, D-045). TURN·클라이언트 Machine도 같은 방식으로 둔다 |
 | `protocols/upnp`, `natpmp`, `pcp` | 코덱은 `core/`, 소켓·멀티캐스트는 `platform/<os>/` |
 | `transport/udp`, `tcp`, `ipv6` | 이미 있음: `core/include/pf/transport.h`, `platform/linux/` |
 | `natlab/simulator` | `core/include/pf/nat_sim.h`(메모리 시뮬레이터, `Transport` 위) — 테스트와 퍼저가 함께 쓰므로 코어에 둔다 |
@@ -83,9 +83,14 @@ hole punching으로 만든 NAT 매핑을 OpenVPN 데이터에 그대로 쓰려�
 | 단계 | 내용 | 종료 조건 | 선행 |
 |---|---|---|---|
 | N0 ✅ | PM-2 진입 논의 | D-044 | — |
-| N1 | STUN 코덱(RFC 8489): 헤더, 속성 TLV, XOR-MAPPED-ADDRESS, MESSAGE-INTEGRITY(-SHA256), FINGERPRINT. `StunSlot`(새 `ProtocolId`)과 `stun.*` fact, STUN/OpenVPN 첫 바이트 구분 Decision 블록(§4) | **RFC 5769 벡터 통과**, 전수·경계 테스트, fuzz 타깃 `fuzz_stun` | F-2 ✅ |
+| N1 ✅ | STUN 코덱(RFC 8489, D-045): 헤더, 속성 TLV, XOR-MAPPED-ADDRESS, MESSAGE-INTEGRITY(-SHA256), FINGERPRINT. `StunSlot`(새 `ProtocolId`)과 `stun.*` fact, STUN/OpenVPN 첫 바이트 구분 Decision 블록(§4) | **RFC 5769 벡터 통과**, 전수·경계 테스트, fuzz 타깃 `fuzz_stun` | F-2 ✅ |
 | N2 | 메모리 NAT 시뮬레이터: RFC 4787 매핑 3종 × 필터링 3종, 매핑 timeout, 포트 할당(보존/순차/무작위), hairpin 옵션 | 9개 조합 각각의 매핑·필터링 동작 테스트, 가짜 시계로 timeout | — |
 | N3 | STUN 클라이언트(binding transaction Machine): 재전송(RFC 8489 RTO), transaction 검증, 공인 엔드포인트, RFC 5780 동작 탐지. 난수 주입(F-1 후속) | 시뮬레이터 9조합에서 기대한 관찰 결과, **수정 없는 coturn**과 netns 상호운용 | N1, N2 |
+
+N1 구현 노트(D-045):
+- 구현한 것: 코덱, FINGERPRINT, MI/MI-SHA256 검증·생성, 장기 자격증명 키, 주소·오류 코드 디코더, `looks_like_stun`, `StunSlot`, 블록 `is_stun`(13)·`parse_stun`(14).
+- 아직 없는 것: SASLprep/OpaqueString, USERHASH, PASSWORD-ALGORITHMS 협상, ALTERNATE-SERVER. N3 이후 필요할 때 추가한다.
+- RFC 5769 벡터는 `tests/regression/golden/stun_rfc5769.golden`에 있다.
 
 **② PM-11 OpenVPN 호환 서버** — 별도 마일스톤(`docs/Milestones.md` PM-11). NAT와 무관하게도 제품 가치가 있다.
 

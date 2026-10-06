@@ -25,7 +25,9 @@ enum class Error : uint16_t {
     Internal,         // contract violation or unexpected internal failure
     FlowInvalid,      // flow was not built/validated
     StepLimit,        // runner step budget exceeded
-    Count             // keep last
+    Malformed,        // structurally invalid message (bad length, attribute overrun, wrong magic ...)
+    ChecksumFailed,   // integrity-less checksum mismatch (STUN FINGERPRINT)
+    Count             // keep last; append new codes just before it (existing values stay stable)
 };
 
 inline constexpr size_t kErrorCount = static_cast<size_t>(Error::Count);
@@ -50,6 +52,8 @@ constexpr const char* error_name(Error e) {
         case Error::Internal: return "Internal";
         case Error::FlowInvalid: return "FlowInvalid";
         case Error::StepLimit: return "StepLimit";
+        case Error::Malformed: return "Malformed";
+        case Error::ChecksumFailed: return "ChecksumFailed";
         case Error::Count: break;
     }
     return "Unknown";
