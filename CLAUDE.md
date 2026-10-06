@@ -14,6 +14,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - **마일스톤(MVP / Post-MVP)**: `docs/Milestones.md`
 - Block API(결과 계약, 버퍼 모델): `docs/Block_API.md`
 - MVP 프로토콜 범위: `docs/OpenVPN_Interop_Profile.md`
+- Flow JSON 형식·버전 규칙: `docs/Flow_JSON_Schema_v1.md`
 - 위협 모델·키 관리·라이선스(clean-room): `docs/Threat_Model_and_Key_Management.md`
 - **전체 결정 기록: `docs/DECISIONS.md`** (@docs/DECISIONS.md)
 

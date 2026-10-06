@@ -1,0 +1,33 @@
+{
+  "format": "protocol-flow",
+  "version": 1,
+  "flow": {
+    "name": "data_rx",
+    "description": "DATA_V2 receive path: parse, find key, replay check, AES-256-GCM verify+decrypt, then commit the packet-id.",
+    "runtime": [
+      "user"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "parse",
+      "block": "parse_data_v2"
+    },
+    {
+      "id": "key",
+      "block": "lookup_rx_key"
+    },
+    {
+      "id": "replay",
+      "block": "replay_check"
+    },
+    {
+      "id": "decrypt",
+      "block": "aead_decrypt"
+    },
+    {
+      "id": "commit",
+      "block": "replay_commit"
+    }
+  ]
+}

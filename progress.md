@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP-B 완료)
+> 마지막 갱신: 2026-10-06 (C1 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -13,7 +13,8 @@
 - [x] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트
 - [x] **MVP-B / B2** — TCP Transport + 2.6 TCP 서버 상호운용
 - [x] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백
-- [ ] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙 (다음)
+- [x] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙
+- [ ] **MVP-C / C2** — Block Registry + Validator (잘못된 Flow 사전 차단) (다음)
 
 ## 요약
 
@@ -23,7 +24,7 @@
 | M0 하드닝 | ✅ 완료 |
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
-| MVP-C Flow JSON + Validator | ⬜ (C1 다음) |
+| MVP-C Flow JSON + Validator | 🔶 C1 완료, C2 다음 |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
 
 ---
@@ -135,7 +136,12 @@
 
 ## MVP-C — Flow JSON v1 + Validator
 
-- [ ] C1 Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙
+- [x] C1 Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙 (D-034, [docs/Flow_JSON_Schema_v1.md](docs/Flow_JSON_Schema_v1.md))
+  - [x] 코어 엄격 JSON(`json.h`): RFC 8259 + 중복 키/잘못된 UTF-8/단독 서로게이트/`\u0000` 거부, 깊이·크기 한도, int64 정확 처리, 줄/열 오류 위치, 안정적 출력. 단위 11개, fuzz(왕복 불변식) 60초 무결함
+  - [x] Flow JSON v1 로더/라이터(`flow_json.h`): 구조·타입·이름·한도·id 유일·알 수 없는 필드 오류(`x-` 확장은 보존), **키 재료 거부**(비밀 이름·PEM·`*Ref` 형식), 여러 오류를 JSON Pointer 경로와 함께 한 번에 보고, 정규 출력(고정점). 단위 16개 + fuzz 60초 무결함
+  - [x] 버전 규칙: 새 버전은 거부, 구버전은 단계별 마이그레이터로 현재 스키마로 올린 뒤 검증, 경로 없음/실패는 오류, 쓰기는 항상 현재 버전. 합성 v1→v3 마이그레이션 테스트
+  - [x] 골든 Flow 3개(`flow_openvpn_rx`, `flow_data_v2_rx/tx`) — C3에서 정적 Flow와 동등성 비교
+  - [x] 변이 9개 검출(1개는 죽은 코드 제거로 정리)
 - [ ] C2 Block Registry + Validator (잘못된 Flow 사전 차단)
 - [ ] C3 MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과 (골든 동등성)
 

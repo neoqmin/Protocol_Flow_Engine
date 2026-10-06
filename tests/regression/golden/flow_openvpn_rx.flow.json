@@ -1,0 +1,49 @@
+{
+  "format": "protocol-flow",
+  "version": 1,
+  "flow": {
+    "name": "openvpn_rx",
+    "description": "Classify an incoming OpenVPN packet: data (header stripped) or control (marked for the control plane).",
+    "runtime": [
+      "user"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "parse",
+      "block": "parse_ovpn_header"
+    },
+    {
+      "id": "policy",
+      "block": "reject_legacy_opcode"
+    },
+    {
+      "id": "is_data",
+      "block": "is_data_v2"
+    },
+    {
+      "id": "strip",
+      "block": "strip_data_v2_header"
+    },
+    {
+      "id": "control",
+      "block": "mark_control_packet"
+    }
+  ],
+  "edges": [
+    {
+      "from": "is_data",
+      "port": "yes",
+      "to": "strip"
+    },
+    {
+      "from": "is_data",
+      "port": "no",
+      "to": "control"
+    },
+    {
+      "from": "strip",
+      "to": null
+    }
+  ]
+}

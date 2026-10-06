@@ -1,0 +1,21 @@
+{
+  "format": "protocol-flow",
+  "version": 1,
+  "flow": {
+    "name": "data_tx",
+    "description": "DATA_V2 transmit path: pick the TX key, then assign packet-id, add the header and encrypt.",
+    "runtime": [
+      "user"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "key",
+      "block": "lookup_tx_key"
+    },
+    {
+      "id": "encrypt",
+      "block": "aead_encrypt"
+    }
+  ]
+}

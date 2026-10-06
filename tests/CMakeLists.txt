@@ -31,6 +31,7 @@ file(GLOB UNIT_SRCS CONFIGURE_DEPENDS unit/test_*.cpp)
 pf_filter_openssl_tests(UNIT_SRCS)
 if(UNIT_SRCS)
   pf_add_test(unit pf_unit_tests ${UNIT_SRCS})
+  target_compile_definitions(pf_unit_tests PRIVATE GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/regression/golden")
 endif()
 
 # PAL tests: real sockets on loopback, no root needed (Linux only; label: unit).
