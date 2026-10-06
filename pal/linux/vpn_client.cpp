@@ -1,7 +1,6 @@
 #include "vpn_client.h"
 
 #include <poll.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -14,6 +13,7 @@
 #include "pf/data_path.h"
 #include "pf/keepalive.h"
 #include "tun_device.h"
+#include "udp_transport.h"
 
 namespace pf::pal {
 
@@ -25,11 +25,6 @@ uint64_t now_ms() {
 }
 
 uint32_t unix_now() { return static_cast<uint32_t>(std::time(nullptr)); }
-
-struct Fd {
-    int fd = -1;
-    ~Fd() { if (fd >= 0) ::close(fd); }
-};
 
 constexpr size_t kMaxDatagram = 2048;
 
@@ -47,15 +42,16 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
     DataPath dp;
     if (!dp.init(&keys, aead.get())) { error_ = "data path init failed"; return VpnExit::ConfigError; }
 
-    Fd sock;
-    sock.fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-    if (sock.fd < 0 || connect(sock.fd, reinterpret_cast<const sockaddr*>(&opts.server), sizeof opts.server) != 0) {
-        error_ = "udp socket/connect failed";
-        return VpnExit::ConfigError;
+    std::unique_ptr<Transport> transport = std::move(opts.transport);
+    if (!transport) {
+        auto udp = std::make_unique<UdpTransport>();
+        if (!udp->open(opts.server, nullptr, err)) { error_ = "udp: " + err; return VpnExit::ConfigError; }
+        transport = std::move(udp);
     }
-    const int fd = sock.fd;
+    const int fd = transport->poll_fd();
+    if (fd < 0) { error_ = "transport has no pollable descriptor"; return VpnExit::ConfigError; }
     auto send_all = [&](const std::vector<std::vector<uint8_t>>& dgrams) {
-        for (const auto& d : dgrams) (void)send(fd, d.data(), d.size(), 0);
+        for (const auto& d : dgrams) (void)transport->send(d.data(), d.size());
     };
 
     // --- phase 1: control channel ------------------------------------------------------------------------------
@@ -77,8 +73,9 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
         pollfd p{fd, POLLIN, 0};
         if (poll(&p, 1, wait) > 0 && (p.revents & POLLIN)) {
             uint8_t buf[kMaxDatagram];
-            const ssize_t n = recv(fd, buf, sizeof buf, 0);
-            if (n > 0) (void)client->on_datagram(buf, static_cast<size_t>(n), now_ms(), unix_now());
+            const RecvResult rr = transport->recv(buf, sizeof buf);
+            if (rr.status == TransportStatus::Ok) (void)client->on_datagram(buf, rr.len, now_ms(), unix_now());
+            else if (rr.status == TransportStatus::Closed || rr.status == TransportStatus::Error) { error_ = "transport closed"; return VpnExit::ControlFailed; }
         }
     }
     const PushReply pr = client->push();
@@ -127,7 +124,7 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
     auto transmit = [&](PacketBuffer& pkt) -> bool {
         const Error e = dp.seal(pkt, client->tx_key_id(), pr.peer_id);
         if (e != Error::None) { ++stats_.tx_failed; return false; }
-        if (send(fd, pkt.data(), pkt.size(), 0) < 0) { ++stats_.tx_failed; return false; }
+        if (transport->send(pkt.data(), pkt.size()) != TransportStatus::Ok) { ++stats_.tx_failed; return false; }
         ka.on_sent(now_ms());
         return true;
     };
@@ -162,11 +159,17 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
         if (fds[0].revents & POLLIN) {
             for (int i = 0; i < 64; ++i) {                              // drain, bounded so timers still run
                 uint8_t buf[kMaxDatagram];
-                const ssize_t n = recv(fd, buf, sizeof buf, MSG_DONTWAIT);
-                if (n <= 0) break;
+                const RecvResult rr = transport->recv(buf, sizeof buf);
+                if (rr.status == TransportStatus::TooLarge) { ++stats_.rx_dropped; continue; }
+                if (rr.status == TransportStatus::Closed || rr.status == TransportStatus::Error) {
+                    error_ = "transport closed";
+                    result = VpnExit::ControlFailed;
+                    break;
+                }
+                if (rr.status != TransportStatus::Ok) break;
                 const uint64_t t = now_ms();
-                if (client->on_datagram(buf, static_cast<size_t>(n), t, unix_now())) { ka.on_received(t); continue; }
-                PacketBuffer pkt = PacketBuffer::from_bytes(buf, static_cast<size_t>(n));
+                if (client->on_datagram(buf, rr.len, t, unix_now())) { ka.on_received(t); continue; }
+                PacketBuffer pkt = PacketBuffer::from_bytes(buf, rr.len);
                 const DataPath::Opened o = dp.open(pkt);
                 if (o.error != Error::None) {
                     ++stats_.rx_dropped;
@@ -180,6 +183,7 @@ VpnExit VpnClient::run(VpnOptions opts, const std::atomic<bool>& stop) {
                 pkt.wipe();
             }
         }
+        if (result != VpnExit::Ok) break;
         if (fds[1].revents & POLLIN) {
             for (int i = 0; i < 64; ++i) {
                 PacketBuffer pkt = DataPath::make_tx_buffer(kMaxDatagram);

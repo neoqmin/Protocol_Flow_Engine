@@ -5,12 +5,16 @@
 #include <cstdint>
 #include <string>
 
+#include <memory>
+
 #include "pf/control_client.h"
+#include "pf/transport.h"
 
 namespace pf::pal {
 
 struct VpnOptions {
-    sockaddr_in server{};                 // UDP endpoint
+    sockaddr_in server{};                 // UDP endpoint (used when `transport` is null)
+    std::unique_ptr<Transport> transport; // optional: a ready transport (must be pollable); default = UDP to `server`
     ControlClientConfig control;          // tls-crypt key, PKI; `keys` is set by the client
     std::string dev_name;                 // TUN name hint ("" = kernel's choice)
     int mtu = 1400;                       // TUN MTU (outer UDP/IP + DATA_V2 overhead must fit the path MTU)

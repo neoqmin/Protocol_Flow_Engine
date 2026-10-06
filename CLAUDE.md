@@ -63,7 +63,7 @@ ctest --test-dir build -L protocol --output-on-failure     # tests/protocol/run_
 ## 코드 규칙
 
 - 구조: `core/`(헤더 `core/include/pf/`, 구현 `core/src/`, 블록 `core/src/blocks/`), `pal/<플랫폼>/`(TUN·소켓·이벤트 루프, 코어는 include 금지), `tests/`, `adapters/`, `third_party/`, `patches/`
-- `tests/unit|flow|regression/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
+- `tests/unit|flow|regression|pal/test_*.cpp`는 CMake가 자동 수집. 하니스: `tests/support/pf_test.h` (`PF_TEST`, 비치명 `PF_CHECK`/`PF_CHECK_EQ`, 치명 `PF_REQUIRE`)
 - 파서/디코더는 전수 테스트 또는 fuzz 타깃(`tests/fuzz/`)을 함께 둔다. 새 코드는 `-Werror`·ASan/UBSan 통과
 - upstream 타입은 `adapters/`에서만 참조. 코어/Block은 우리 인터페이스에만 의존
 - Block 결과 계약: `Drop`=입력 탓(사유 필수) / `Error`=우리 실패. Action은 Continue, Decision은 Yes/No. 새 block id는 재번호 금지

@@ -33,6 +33,15 @@ if(UNIT_SRCS)
   pf_add_test(unit pf_unit_tests ${UNIT_SRCS})
 endif()
 
+# PAL tests: real sockets on loopback, no root needed (Linux only; label: unit).
+if(TARGET pf_pal_linux)
+  file(GLOB PAL_SRCS CONFIGURE_DEPENDS pal/test_*.cpp)
+  if(PAL_SRCS)
+    pf_add_test(unit pf_pal_tests ${PAL_SRCS})
+    target_link_libraries(pf_pal_tests PRIVATE pf_pal_linux)
+  endif()
+endif()
+
 file(GLOB FLOW_SRCS CONFIGURE_DEPENDS flow/test_*.cpp)
 pf_filter_openssl_tests(FLOW_SRCS)
 if(FLOW_SRCS)

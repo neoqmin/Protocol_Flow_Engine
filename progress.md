@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP-A 완료)
+> 마지막 갱신: 2026-10-06 (B1 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -10,7 +10,8 @@
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
 - [x] **MVP-A 완료** (A1~A4 + 공통 종료 조건)
-- [ ] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트 (다음)
+- [x] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트
+- [ ] **MVP-B / B2** — TCP Transport (2바이트 길이 프레이밍, 부분 읽기) + 2.6 TCP 서버 상호운용 (다음)
 
 ## 요약
 
@@ -19,7 +20,7 @@
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
-| MVP-B TCP + 폴백 | ⬜ |
+| MVP-B TCP + 폴백 | 🔶 B1 완료, B2 다음 |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
 
@@ -114,7 +115,10 @@
 
 ## MVP-B — TCP 프레이밍 + Transport 폴백
 
-- [ ] B1 Transport 인터페이스 + UDP loopback 테스트
+- [x] B1 Transport 인터페이스 + UDP loopback 테스트 (D-031)
+  - [x] `Transport`(코어, 패킷 단위 send/recv, 논블로킹, `TransportStatus`), 테스트용 `LoopbackTransport`(차단·드롭·용량·종료 시뮬레이션 — B3의 "UDP 차단" 재현용)
+  - [x] `pal/linux/UdpTransport`(connected 소켓, `MSG_TRUNC`로 초과 데이터그램 감지, 다른 출처 패킷 필터링), `VpnClient`가 Transport만 사용
+  - [x] 테스트: loopback 계약 7개(unit), 실제 127.0.0.1 UDP 5개(`pf_pal_tests`, root 불필요), 리팩터링 후 터널 테스트·ASan/UBSan 통과
 - [ ] B2 TCP Transport (2바이트 길이 프레이밍, 부분 읽기) + 2.6 TCP 서버 상호운용
 - [ ] B3 UDP 차단 시 TCP 자동 폴백 (시뮬레이션 테스트)
 
