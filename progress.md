@@ -2,20 +2,21 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (C2 완료)
+> 마지막 갱신: 2026-10-06 (병합: 두 A4 구현 공존, C2 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
-- [x] **MVP-A 완료** (A1~A4 + 공통 종료 조건)
+- [x] **MVP-A 완료** (A1~A4 + 공통 종료 조건; A4는 구현 2종이 공존 — 아래 '정리 필요')
 - [x] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트
 - [x] **MVP-B / B2** — TCP Transport + 2.6 TCP 서버 상호운용
 - [x] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백
 - [x] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙
 - [x] **MVP-C / C2** — Block Registry + Validator
 - [ ] **MVP-C / C3** — MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과(골든 동등성) (다음)
+- [ ] **정리 필요 — A4 구현 중복**: 병렬 세션이 같은 A4를 따로 구현함. `pf_client`(`TunnelSession` + `platform/linux`, D-029)와 `pf_vpn`(`DataPath` + `VpnClient` + `pal/linux` + Transport/폴백, D-030). 둘 다 수정 없는 서버로 검증됨(1시간 soak 포함). 하나로 통합하는 결정 필요 (제안: `pf_vpn`의 Transport/폴백 위에 `TunnelSession`의 sans-I/O 세션 계층을 얹어 PAL 한 벌만 남기기)
 
 ## 요약
 
@@ -95,14 +96,27 @@
 - [x] **실제 서버로 상호운용** (`tools/pf_connect`, UDP): 수정 없는 OpenVPN 2.6.19와 핸드셰이크(~10ms) 성공, key-method 2 수락, 서버 응답의 선택 필드 3개 확인(계측으로 발견·수정)
 - [x] **EKM 키 분할 확정** (D-026): 모든 오프셋 탐색에서 GCM 태그 검증되는 조합이 유일, tx는 서버가 핑을 수락
 - [x] **데이터 채널 양방향 keepalive** 실제 서버와 교환 (우리 TX/RX 블록 사용: 송신 핑을 서버가 복호, 서버 핑을 우리가 replay 검사→복호)
-- [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡. 키 분할을 틀리게 바꾸면 실패함을 확인
+- [x] **자동 상호운용 테스트** `tests/protocol/run_interop.sh` (CTest 라벨 `protocol`) + CI `interop` 잡(GH 러너 3시나리오 통과, 차단 잡으로 전환). 키 분할을 틀리게 바꾸면 실패함을 확인
 - [x] **재협상(SOFT_RESET, key_id 회전)**: key_id별 key state, 서버·클라이언트 시작 모두, TX 전환, 이전 키 수신 유예(최대 1개), 실패 시 이전 키 유지. 가짜 서버 11개 시나리오 + 변이 11개 모두 검출. **실제 서버: 26초 동안 12회 재협상, key_id 7→1 순환 확인, 데이터 12/12 정상**
 - [x] keepalive 스케줄링(`KeepaliveTimer`: ping / ping-restart)을 코어로. 변이 검출 확인
 - [x] 상호운용 테스트 3 시나리오(`baseline`, `server-reneg`, `client-reneg`), 재협상/키 전환을 깨뜨리는 변이를 모두 검출
 - [ ] keepalive(ping), 재협상(key_id 회전)
 - [x] 수정 없는 OpenVPN 2.6 서버와 핸드셰이크 성공 (`tests/protocol`, 정적 tls-crypt 키로 전 구간 동작 확인 — dyn-tls-crypt 비광고)
 
-### A4 — Linux 통합
+### A4 — Linux 통합 (구현 2종 공존, 통합 필요: 위 '정리 필요')
+
+**A4-a `pf_client`** — `TunnelSession` + `platform/linux` ([docs/Linux_Client_Notes.md](docs/Linux_Client_Notes.md), D-029)
+
+- [x] `TunnelSession` (코어, sans-I/O): ControlClient + RX/TX Flow + KeepaliveTimer 결합. 수신 분류(핑/IP/기타), 연결 전 트래픽 거부, 재협상 후 새 key_id 전환. 가짜 서버 11개 테스트 + 변이 5개 모두 검출
+- [x] Linux PAL `platform/linux`: connected UDP 소켓(논블로킹), TUN 장치(`IFF_TUN|IFF_NO_PI`), 주소/넷마스크/MTU/up, 푸시된 라우트
+- [x] `pf_client`: 이벤트 루프, PUSH_REPLY 후 TUN 설정, SIGINT/SIGTERM 정상 종료, 세션 사망 시 종료 코드 2(재연결은 상위 감독자)
+- [x] **터널 ping 성공** (수정 없는 OpenVPN 2.6.19, netns + 실제 TUN): 20회 + 1300바이트 ping 손실 0%, 주소·푸시 라우트 설치 확인
+- [x] **재협상 중 트래픽**: 서버가 2초마다 재협상(≥8회, key_id 7→1 순환)하는 동안 연속 ping 손실 0%
+- [x] 자동 테스트 `tests/protocol/run_tunnel.sh` (CTest `pf_tunnel_openvpn`, 라벨 `protocol`)
+- [x] **1시간 연결 + 재협상 1회 이상** (서버 기본 `reneg-sec 3600`, 3700초): 재협상 1회 성공, 송수신 3622/3622 손실 0. (첫 실행은 스크립트가 pf_client 종료 후에도 ping을 보내 손실로 오판 → `ping -w`로 수정)
+- [x] ASan/UBSan(-Werror) 빌드에서 unit/flow/regression 통과
+
+**A4-b `pf_vpn`** — `DataPath` + `VpnClient` + `pal/linux` + Transport/폴백 (D-030)
 
 - [x] `DataPath`(코어, I/O 없음): A2 TX/RX Flow를 `seal`/`open`으로 감쌈. IP/Ping/Other 분류 — IP 아닌 인증 데이터는 TUN에 쓰지 않음. 변조·재생·미지 key_id·키 없음 테스트
 - [x] `pal/linux`: `TunDevice`(ioctl로 주소·MTU·up·라우트, `ip` 불필요), `VpnClient`(UDP+TUN `poll()` 루프, 핑 송신/ping-restart 감시, 통계), 실행 파일 `pf_vpn` (D-030)
