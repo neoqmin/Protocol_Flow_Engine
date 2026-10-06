@@ -67,7 +67,7 @@ M0 하드닝 ✅
 |---|---|---|
 | C1 ✅ | Flow JSON 스키마 v1 + **버전 관리/마이그레이션 규칙** | 스키마 테스트 |
 | C2 ✅ | Block Registry + Validator (잘못된 Flow 사전 차단) | 유효/무효 Flow 케이스 테스트 |
-| C3 | MVP-A의 정적 Flow를 JSON으로 로딩해 동일 결과 | 정적 Flow와 JSON Flow의 golden 동등성 |
+| C3 ✅ | MVP-A의 정적 Flow를 JSON으로 로딩해 동일 결과 | 정적 Flow와 JSON Flow의 golden 동등성 |
 
 ---
 

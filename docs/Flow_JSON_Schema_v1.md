@@ -1,7 +1,7 @@
 # Flow JSON 스키마 v1
 
 Flow를 저장·교환하는 파일 형식. 구현: `core/include/pf/flow_json.h`(구조 검증), `json.h`(엄격 JSON). 의미 검증(블록 존재, 포트, 순환 등)은 C2 Validator 몫이다.
-정본 예시: `tests/regression/golden/flow_*.flow.json` (정적 Flow와 동등해야 한다 — C3).
+정본 예시: `tests/regression/golden/flow_*.flow.json`. **정적 Flow와 동등함이 테스트로 보장된다**(`tests/flow/test_flow_json_equivalence_openssl.cpp`, C3): 같은 그래프, 실제 OpenVPN 패킷에서 같은 결과·같은 바이트. 이 골든을 바꾸면(블록·순서·엣지) 그 테스트가 실패하므로 의도한 변경이면 정적 정의/기대값과 함께 리뷰한다.
 
 ## 1. 문서 구조
 

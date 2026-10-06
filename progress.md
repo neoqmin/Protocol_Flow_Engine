@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (A4 구현 통합, C2 완료)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료: A·B·C)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -15,7 +15,8 @@
 - [x] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백
 - [x] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙
 - [x] **MVP-C / C2** — Block Registry + Validator
-- [ ] **MVP-C / C3** — MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과(골든 동등성) (다음)
+- [x] **MVP-C / C3** — MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과(골든 동등성)
+- [x] **MVP 전체 완료 (MVP-A + MVP-B + MVP-C)** — 다음은 Post-MVP(`docs/Milestones.md`): 진입할 항목 선택 필요
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -26,7 +27,7 @@
 | M0 하드닝 | ✅ 완료 |
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
-| MVP-C Flow JSON + Validator | 🔶 C1·C2 완료, C3 다음 |
+| MVP-C Flow JSON + Validator | ✅ 완료 (C1~C3) |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
 
 ---
@@ -163,7 +164,11 @@
   - [x] `compile_flow`/`load_flow_json`: 텍스트 → 파싱·마이그레이션 → 검증 → 실행 가능한 `Flow`. 무효 문서는 Flow를 만들지 않음. 문법/의미 오류가 같은 `{code,path,message}` 형태
   - [x] 단위 13개 + 무작위 문서 6000개 **검증기-FlowBuilder 차등 테스트**(불일치 0) + 골든 3개를 실제 레지스트리로 로드. 변이 9개 모두 검출(테스트 결함 1건 수정: 이슈 없을 때 `issues[0]` 접근)
   - [x] fuzz `fuzz_flow_load`(텍스트→검증→컴파일→**실행**) 90초 무결함
-- [ ] C3 MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과 (골든 동등성)
+- [x] C3 MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과 (골든 동등성) (D-038)
+  - [x] 골든 Flow 3개(`flow_openvpn_rx`, `flow_data_v2_rx/tx`)를 `load_flow_json`으로 로드한 Flow가 코드로 만든 정적 Flow와 **그래프 완전 동일**(라벨·블록·타입·핸들러·모든 엣지)
+  - [x] **동작 동일**: 헤더 골든 전 행 + 모든 첫 바이트 256개, **실제 OpenVPN DATA_V2 골든 17개**(실제 AES-256-GCM)에서 FlowResult(결과·오류·단계 수·마지막 노드)·패킷 바이트·플래그·헤더가 같음. 복호 평문은 OpenVPN 원본과 일치, 재생·태그/암호문 변조·잘못된 key_id도 같은 사유로 같이 거부, TX는 **OpenVPN 와이어 바이트를 정확히 재현**
+  - [x] 표기가 달라도(멤버 순서·공백·명시적 기본값·`x-` 확장) 같은 Flow. 골든 JSON을 일부러 망가뜨린 변이 5개(yes/no 교체, 노드 순서, 노드 삭제 ×2, 종료 엣지 삭제) 모두 그래프·동작 비교 양쪽에서 검출
+  - [x] ASan/UBSan(`-Werror`) 통과
 
 ---
 
