@@ -72,11 +72,22 @@ if(PF_PROTOCOL_TESTS)
   endif()
 endif()
 
+# Data-path micro benchmark (label: performance; informational, not pass/fail).
+if(PF_HAVE_OPENSSL)
+  add_executable(pf_bench_data_path performance/bench_data_path.cpp)
+  target_link_libraries(pf_bench_data_path PRIVATE pf_core)
+  add_test(NAME pf_bench_data_path COMMAND pf_bench_data_path)
+  set_tests_properties(pf_bench_data_path PROPERTIES LABELS performance)
+endif()
+
 # libFuzzer targets (Clang only): cmake -DPF_BUILD_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++
 if(PF_BUILD_FUZZ)
   file(GLOB FUZZ_SRCS CONFIGURE_DEPENDS fuzz/fuzz_*.cpp)
   foreach(src ${FUZZ_SRCS})
     get_filename_component(name ${src} NAME_WE)
+    if(name STREQUAL "fuzz_tls_crypt" AND NOT PF_HAVE_OPENSSL)
+      continue()
+    endif()
     add_executable(${name} ${src})
     target_link_libraries(${name} PRIVATE pf_core)
     target_compile_options(${name} PRIVATE -fsanitize=fuzzer,address,undefined)

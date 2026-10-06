@@ -2,14 +2,15 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-05 (A4 완료)
+> 마지막 갱신: 2026-10-06 (MVP-A 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
 ## 지금 할 일 (Next)
 
 - [x] **MVP-A / A3** — Control Plane 완료 (실제 서버와 제어·데이터 채널·keepalive·재협상 상호운용)
-- [x] **MVP-A / A4** — UDP 소켓 + TUN 통합, 터널 ping, 1시간 연결 (재협상 포함) 완료
+- [x] **MVP-A 완료** (A1~A4 + 공통 종료 조건)
+- [ ] **MVP-B / B1** — Transport 인터페이스 + UDP loopback 테스트 (다음)
 
 ## 요약
 
@@ -17,7 +18,7 @@
 |---|---|
 | 기반 (문서·정책·CI) | ✅ 완료 |
 | M0 하드닝 | ✅ 완료 |
-| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | 🔶 A1~A4 완료, 공통 종료 조건 남음 |
+| **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ⬜ |
 | MVP-C Flow JSON + Validator | ⬜ |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
@@ -107,9 +108,9 @@
 
 ### MVP-A 공통 종료 조건
 
-- [ ] 파서/디코더 fuzz·전수 테스트 통과, ASan/UBSan clean
-- [ ] **오픈소스 수정 0건**
-- [ ] 성능 **기준선(baseline)** 측정 기록 (OpenVPN 2.6 대비, 목표 수치는 이후 확정)
+- [x] 파서/디코더 fuzz·전수 테스트 통과, ASan/UBSan clean — fuzz 타깃 7개(`header`, `data_v2`, `control_packet`, `key_method2`, `push`, `tls_crypt`, `reliable`) 각 40초 실행(총 1.3억 회 이상) 크래시·불변식 위반 0, ASan/UBSan+`-Werror` 빌드의 unit/flow/regression 통과
+- [x] **오픈소스 수정 0건** (`third_party/`·`patches/` 비어 있음, 상호운용은 수정 없는 OpenVPN 2.6.19 바이너리)
+- [x] 성능 **기준선(baseline)** 측정 기록: [docs/Performance_Baseline.md](docs/Performance_Baseline.md) — 데이터 경로 ~2.4µs/패킷(고정비용 지배), 터널 TCP 517/752 Mbit/s로 stock 클라이언트(552/550)와 동급. 목표 수치는 이후 확정
 
 ## MVP-B — TCP 프레이밍 + Transport 폴백
 
