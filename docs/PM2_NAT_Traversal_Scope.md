@@ -84,13 +84,17 @@ hole punching으로 만든 NAT 매핑을 OpenVPN 데이터에 그대로 쓰려�
 |---|---|---|---|
 | N0 ✅ | PM-2 진입 논의 | D-044 | — |
 | N1 ✅ | STUN 코덱(RFC 8489, D-045): 헤더, 속성 TLV, XOR-MAPPED-ADDRESS, MESSAGE-INTEGRITY(-SHA256), FINGERPRINT. `StunSlot`(새 `ProtocolId`)과 `stun.*` fact, STUN/OpenVPN 첫 바이트 구분 Decision 블록(§4) | **RFC 5769 벡터 통과**, 전수·경계 테스트, fuzz 타깃 `fuzz_stun` | F-2 ✅ |
-| N2 | 메모리 NAT 시뮬레이터: RFC 4787 매핑 3종 × 필터링 3종, 매핑 timeout, 포트 할당(보존/순차/무작위), hairpin 옵션 | 9개 조합 각각의 매핑·필터링 동작 테스트, 가짜 시계로 timeout | — |
+| N2 ✅ | 메모리 NAT 시뮬레이터(D-046): RFC 4787 매핑 3종 × 필터링 3종, 매핑 timeout, 포트 할당(보존/순차/무작위), hairpin 옵션 | 9개 조합 각각의 매핑·필터링 동작 테스트, 가짜 시계로 timeout | — |
 | N3 | STUN 클라이언트(binding transaction Machine): 재전송(RFC 8489 RTO), transaction 검증, 공인 엔드포인트, RFC 5780 동작 탐지. 난수 주입(F-1 후속) | 시뮬레이터 9조합에서 기대한 관찰 결과, **수정 없는 coturn**과 netns 상호운용 | N1, N2 |
 
 N1 구현 노트(D-045):
 - 구현한 것: 코덱, FINGERPRINT, MI/MI-SHA256 검증·생성, 장기 자격증명 키, 주소·오류 코드 디코더, `looks_like_stun`, `StunSlot`, 블록 `is_stun`(13)·`parse_stun`(14).
 - 아직 없는 것: SASLprep/OpaqueString, USERHASH, PASSWORD-ALGORITHMS 협상, ALTERNATE-SERVER. N3 이후 필요할 때 추가한다.
 - RFC 5769 벡터는 `tests/regression/golden/stun_rfc5769.golden`에 있다.
+
+N2 구현 노트(D-046):
+- `Nat`(RFC 4787 동작), `Network`(realm 트리: hairpin과 CGN 중첩이 같은 라우팅 규칙에서 나옴, 지연, 이유별 drop 카운터), `NetworkTransport`(시뮬레이터 위의 connected UDP `Transport`).
+- N8의 유저 공간 NAT(§7 Q5)는 이 `Nat` 코어를 TUN 위에 얹는 방식으로 재사용한다.
 
 **② PM-11 OpenVPN 호환 서버** — 별도 마일스톤(`docs/Milestones.md` PM-11). NAT와 무관하게도 제품 가치가 있다.
 

@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 STUN 코덱 — D-045)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 STUN 코덱 — D-045, N2 NAT 시뮬레이터 — D-046)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -24,7 +24,8 @@
 - [x] **F-2 / S6 FlowContext 일반화** — 프로토콜 슬롯 + 블록 컨텍스트 계약(consumes/produces) + `ContextNotProduced` 검사 (D-043)
 - [x] **PM-2 진입 논의(N0)** — OpenVPN 호환 서버(PM-11 신설), 연결 서버 `pf_connectd`(STUN + 자체 TURN + rendezvous), coturn 양방향 상호운용, 순서 ① N1~N3 → ② PM-11 → ③ N4~N8 (D-044)
 - [x] **PM-2b / N1 STUN 코덱** — RFC 8489 코덱 + RFC 5769 벡터 4개(바이트 단위 재현) + `StunSlot` + `is_stun`/`parse_stun` 블록 + fuzz (D-045)
-- [ ] **다음: PM-2b / N2 메모리 NAT 시뮬레이터** (RFC 4787 매핑 3 × 필터링 3, timeout, 포트 할당, hairpin)
+- [x] **PM-2b / N2 메모리 NAT 시뮬레이터** — RFC 4787 `Nat` + realm 트리 `Network`(hairpin·CGN) + `NetworkTransport`, 9개 조합을 실제 STUN으로 검증 (D-046)
+- [ ] **다음: PM-2b / N3 STUN 클라이언트 Machine** (binding transaction, RFC 8489 재전송, RFC 5780 동작 탐지, 시뮬레이터 9조합, 수정 없는 coturn 상호운용)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -194,7 +195,11 @@
       - [x] 공유 소켓 Flow 테스트: RFC 벡터는 STUN 쪽, 실제 OpenVPN 2.6.19 골든 패킷 17개는 OpenVPN 쪽
       - [x] 테스트 24개, `fuzz_stun` 120초 약 1,500만 회 무결함, 변이 14개 중 13개 검출(1개 동등 변이), ASan/UBSan·OpenSSL 없는 빌드 통과
       - [ ] 후속(필요 시): SASLprep/OpaqueString, USERHASH, PASSWORD-ALGORITHMS, ALTERNATE-SERVER
-    - [ ] N2 메모리 NAT 시뮬레이터 (RFC 4787 매핑 3 × 필터링 3, timeout, 포트 할당)
+    - [x] N2 메모리 NAT 시뮬레이터 (D-046)
+      - [x] `Nat`: 매핑 EIM/ADM/APDM × 필터링 EIF/ADF/APDF, 포트 Preserve/Sequential/Random(결정적), timeout(나감 갱신·들어옴 갱신 옵션·허용도 함께 만료), hairpin 옵션, overloading 없음, 고갈
+      - [x] `Network`: 공용·사설 realm 트리, 같은 규칙으로 hairpin·**CGN 중첩**, 지연, 단조 시계, 이유별 drop 카운터 / `NetworkTransport`(connected UDP `Transport`)
+      - [x] 테스트 14개: 9개 조합 매핑·필터링, 포트 할당, timeout·갱신, 고갈·재사용, **관찰 오라클 대비 무작위 300×120단계**, 라우팅·hairpin·CGN·지연·Transport, **N1 STUN Binding을 9개 조합에 통과**(매핑 주소·다른 주소/포트 응답 도착 여부)
+      - [x] 변이 14개 중 13개 검출(나머지 1개는 검출되면 안 되는 대조군), ASan/UBSan·OpenSSL 없는 빌드·clang `-Werror` 통과
     - [ ] N3 STUN 클라이언트 Machine + 동작 탐지 (RFC 5780), 수정 없는 coturn 상호운용
   - ② PM-11 OpenVPN 호환 서버 (아래)
   - ③ 연결 서버 · hole punching · Relay
