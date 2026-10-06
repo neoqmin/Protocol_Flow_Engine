@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (C1 완료)
+> 마지막 갱신: 2026-10-06 (C2 완료)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -14,7 +14,8 @@
 - [x] **MVP-B / B2** — TCP Transport + 2.6 TCP 서버 상호운용
 - [x] **MVP-B / B3** — UDP 차단 시 TCP 자동 폴백
 - [x] **MVP-C / C1** — Flow JSON 스키마 v1 + 버전 관리/마이그레이션 규칙
-- [ ] **MVP-C / C2** — Block Registry + Validator (잘못된 Flow 사전 차단) (다음)
+- [x] **MVP-C / C2** — Block Registry + Validator
+- [ ] **MVP-C / C3** — MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과(골든 동등성) (다음)
 
 ## 요약
 
@@ -24,7 +25,7 @@
 | M0 하드닝 | ✅ 완료 |
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
-| MVP-C Flow JSON + Validator | 🔶 C1 완료, C2 다음 |
+| MVP-C Flow JSON + Validator | 🔶 C1·C2 완료, C3 다음 |
 | Post-MVP (PM-1 ~ PM-10) | ⬜ |
 
 ---
@@ -142,7 +143,12 @@
   - [x] 버전 규칙: 새 버전은 거부, 구버전은 단계별 마이그레이터로 현재 스키마로 올린 뒤 검증, 경로 없음/실패는 오류, 쓰기는 항상 현재 버전. 합성 v1→v3 마이그레이션 테스트
   - [x] 골든 Flow 3개(`flow_openvpn_rx`, `flow_data_v2_rx/tx`) — C3에서 정적 Flow와 동등성 비교
   - [x] 변이 9개 검출(1개는 죽은 코드 제거로 정리)
-- [ ] C2 Block Registry + Validator (잘못된 Flow 사전 차단)
+- [x] C2 Block Registry + Validator (잘못된 Flow 사전 차단) (D-035)
+  - [x] `BlockDescriptor`에 파라미터 선언(`ParamSpec`) 추가(기존 블록 등록 코드 무변경), `BlockRegistry::all()`
+  - [x] `validate_flow`: 알 수 없는 블록(+가까운 이름 제안), 파라미터 선언 대조, 끊어진 엣지, 포트-블록 타입 불일치, 중복 엣지, Decision 출구 누락, 런타임, **순환(경로 출력)**, 도달 불가 — JSON Pointer 경로와 함께 한 번에 여러 개 보고
+  - [x] `compile_flow`/`load_flow_json`: 텍스트 → 파싱·마이그레이션 → 검증 → 실행 가능한 `Flow`. 무효 문서는 Flow를 만들지 않음. 문법/의미 오류가 같은 `{code,path,message}` 형태
+  - [x] 단위 13개 + 무작위 문서 6000개 **검증기-FlowBuilder 차등 테스트**(불일치 0) + 골든 3개를 실제 레지스트리로 로드. 변이 9개 모두 검출(테스트 결함 1건 수정: 이슈 없을 때 `issues[0]` 접근)
+  - [x] fuzz `fuzz_flow_load`(텍스트→검증→컴파일→**실행**) 90초 무결함
 - [ ] C3 MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과 (골든 동등성)
 
 ---

@@ -119,3 +119,7 @@ TX:  lookup_tx_key → aead_encrypt        (호출자가 ctx.header = {DataV2, k
 - OpenSSL 구현은 호출마다 `EVP_CIPHER_CTX`를 만든다. 성능 최적화(컨텍스트 재사용, 배칭)는 PM-3.
 - 키 유도(exporter)와 재협상으로 `KeyStore`에 키를 설치하는 부분은 A3.
 - 64비트 packet-id(epoch) 방식은 지원하지 않는다(2.6 프로파일 한정, D-017).
+
+## 10. 파라미터 선언 (C2)
+
+Flow 파일의 `params`를 받는 블록은 `BlockDescriptor::params`(`ParamSpec{name, type, required}`)로 선언한다. 타입은 `String/Integer/Number/Bool/KeyRef`. **선언하지 않은 블록은 파라미터를 받지 않으며**, 선언되지 않은 이름·누락된 필수 값·타입 불일치는 Validator가 실행 전에 거부한다(`docs/Flow_JSON_Schema_v1.md` §2.1). `KeyRef`는 이름이 `Ref`로 끝나는 문자열 참조이고 키 바이트가 아니다. 현재 MVP 블록은 파라미터가 없다.

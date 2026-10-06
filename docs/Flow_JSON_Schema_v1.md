@@ -51,6 +51,24 @@ Flow를 저장·교환하는 파일 형식. 구현: `core/include/pf/flow_json.h
 - Decision 노드는 `yes`·`no` 엣지가 **둘 다 필요**하다.
 - 순환, 도달 불가 노드, 중복 엣지, 존재하지 않는 id/블록 이름은 Validator가 거부한다.
 
+## 2.1 의미 검증 (Validator, `flow_validator.h`)
+
+로더가 구조를 통과시킨 문서를 **실행 전에** 레지스트리와 대조한다(`validate_flow` / `compile_flow` / `load_flow_json`). 모든 이슈는 `{code, path, message}`이고 한 번에 여러 개를 돌려준다. 그래프 검사(순환·도달 불가)는 블록/엣지 오류가 모두 없어야 수행한다(`FlowBuilder`와 같은 규칙).
+
+| code | 의미 |
+|---|---|
+| `UnknownBlock` | 등록되지 않은 블록 이름 — 가까운 이름이 있으면 "did you mean" 제안 |
+| `UnknownParam` / `MissingParam` / `ParamType` | 블록이 선언한 파라미터(`ParamSpec`)와 불일치. **선언하지 않은 블록은 파라미터를 받지 않는다**(오타가 조용히 무시되지 않게) |
+| `EdgeUnknownSource` / `EdgeUnknownTarget` | 존재하지 않는 노드 id |
+| `PortMismatch` | Action에 `yes/no`, Decision에 `continue` |
+| `DuplicateEdge` | 같은 노드·같은 포트의 엣지 2개 |
+| `MissingEdge` | Decision에 `yes`/`no` 중 빠진 것 |
+| `RuntimeUnsupported` | `flow.runtime`에 `"user"`가 없음(이 빌드가 실행하는 유일한 런타임) |
+| `Cycle` | 순환 — 메시지에 `a -> b -> c -> a` 경로. Flow는 비순환이라 패킷당 작업량이 유한하다 |
+| `Unreachable` | 첫 노드에서 도달할 수 없는 노드(죽은 코드) |
+
+`compile_flow`는 검증을 통과한 문서만 `FlowBuilder`로 넘겨 실행 가능한 `Flow`를 만든다(노드 라벨 = 문서의 id). 무효 문서는 **Flow를 만들지 않는다**. 검증기와 빌더가 어긋나면 `Internal` 이슈(우리 버그)로 보고하며, 무작위 문서 6000개 차등 테스트로 어긋남이 없음을 확인한다.
+
 ## 3. 파라미터와 키 (보안 규칙)
 
 - 값은 **문자열·숫자·불리언**만(중첩 객체/배열/`null` 불가). 이름은 `[a-z][A-Za-z0-9_]*`, 노드당 ≤ 64개, 문자열 ≤ 1024바이트.
