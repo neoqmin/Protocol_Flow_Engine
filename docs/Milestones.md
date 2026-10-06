@@ -1,6 +1,6 @@
 # 마일스톤 (Milestones)
 
-기준 결정: D-006(MVP에서 오픈소스 수정 제외), D-008(MVP 프로토콜 프로파일), 설계 리뷰(2026-10-05).
+기준 결정: D-006(MVP에서 오픈소스 수정 제외), D-008(MVP 프로토콜 프로파일), 설계 리뷰(2026-10-05), D-039(NAT 계획 채택 범위), D-040(Flow 모델 두 층).
 범위 상세는 `docs/OpenVPN_Interop_Profile.md`. 각 마일스톤은 **테스트를 먼저 작성(TDD)** 하고 종료 조건을 자동 테스트로 판정한다.
 
 표기: 🔧 = 오픈소스 수정/패치가 필요할 수 있는 항목 (조사 후 결정, MVP 불가)
@@ -16,15 +16,16 @@ M0 하드닝 ✅
   ↓ ───────────────── MVP 경계 (여기까지 오픈소스 수정 없음) ─────────────────
 [Post-MVP]
        PM-1 플랫폼 확장 (Windows → Android → macOS → iOS)
-       PM-2 네트워크 우회 (프록시, Relay, Hole Punching)
+       PM-2 네트워크 우회 (2a 프록시·Reverse Connect / 2b NAT Traversal: STUN·Hole Punching·TURN)
        PM-3 성능 최적화
-       PM-4 DSL / Compiler / IR
+       PM-4 DSL / Compiler / IR + State Machine 층 (F-1)
        PM-5 TAP / L2 Block
        PM-6 GUI Flow Editor
        PM-7 MCP / AI 계층
        PM-8 🔧 OpenVPN DCO / Kernel Runtime
        PM-9 프로토콜 확장 (WireGuard / SDP / NAC)
        PM-10 암호 확장 (tls-crypt-v2, KCMVP 등)
+       공통 기반 F-1 State Machine · F-2 FlowContext 일반화 · F-3 Trace (사용처가 먼저 오는 PM에서 진행)
 ```
 
 ---
@@ -78,15 +79,25 @@ M0 하드닝 ✅
 | ID | 마일스톤 | 내용 | 진입 조건 | 🔧 | 출처 |
 |---|---|---|---|---|---|
 | PM-1 | 플랫폼 확장 | Windows(Wintun) → Android(VpnService/JNI) → macOS(Network Extension) → iOS(메모리 예산 준수). PAL Device 구현, 플랫폼별 키 저장소, CI 빌드 잡(NDK/Xcode) | MVP-A | | MultiPlatform §3,4,7 |
-| PM-2 | 네트워크 우회 | HTTP CONNECT/SOCKS5, Relay(자체 구현 vs 기존 도구 수정 없이 사용: **미결**), Hole Punching, Reverse Connect | MVP-B | 🔧(기존 도구 패치 시) | MultiPlatform §5 |
+| PM-2 | 네트워크 우회 | **PM-2a**: HTTP CONNECT/SOCKS5, Reverse Connect. **PM-2b NAT Traversal**(N0~N7): STUN 코덱·클라이언트, NAT 시뮬레이터(RFC 4787), UDP hole punching, TURN Relay(`Transport` + 폴백 단계, 수정 없는 coturn 상호운용), NAT 랩. ICE 전체·TCP 펀칭·UPnP/PCP·IPv6는 후속 (`docs/PM2_NAT_Traversal_Scope.md`, D-039). **진입 시 범위 재논의**(피어 역할, 시그널링, PM-4와의 순서) | MVP-B (+2b는 F-2) | 🔧(기존 도구 패치 시, 트리 밖 NAT 모듈) | MultiPlatform §5, NAT 계획 |
 | PM-3 | 성능 최적화 | zero-copy, batching, lock 최소화, per-CPU. 기준선 대비 목표 수치 확정 후 진행 | MVP-A 기준선 | | OpenVPN §19 Phase 6, §21 |
-| PM-4 | DSL / Compiler / IR | Flow JSON 위 텍스트 DSL, IR, 최적화. Control Plane 표현 방식(루프/타이머) 결정 포함 | MVP-C | | OpenVPN §7~9, §19 Phase 5 |
+| PM-4 | DSL / Compiler / IR | Flow JSON 위 텍스트 DSL, IR, 최적화. **Control Plane 표현 = State Machine 층(F-1, D-040)**: 순환·타이머·상태는 Machine에만, 패킷 Flow는 DAG 유지. `protocol-machine` v1, Machine Validator(livelock·무한 재시도·timeout 없는 대기 거부), `KeepaliveTimer` 동등성 테스트로 시작 (`plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md` S0~S7) | MVP-C | | OpenVPN §7~9, §19 Phase 5, Flow 모델 확장 계획 |
 | PM-5 | TAP / L2 | ETH_PARSE, ARP, BROADCAST_FILTER, MAC learning, Validator의 L2 규칙 | MVP-A | | MultiPlatform §6 |
 | PM-6 | GUI Flow Editor | **MVP-C 직후 에디터 PoC**(OpenVPN RX Flow JSON 표시 + 실시간 검증 오류) → Production. 캔버스는 MIT 계열 라이브러리, n8n 코드 미사용(D-022). Validator WASM 공유 검토. 사용자에 보안 관리자·운영자 포함 → 권한/승인/감사/버전·서명 요구(D-023) | MVP-C | | OpenVPN §18, §27~, §49, D-022 |
 | PM-7 | MCP / AI 계층 | MCP Server, 권한 모델, 승인/감사 로그. 자연어 → Flow → 검증 → User Runtime 배포까지(DCO 제외) | MVP-C + PM-6 설계 | | MCP 계획 전체 |
 | PM-8 | 🔧 OpenVPN DCO / Kernel Runtime | DCO Adapter, Kernel Runtime(Linux/Windows), Shared Memory Crypto. **먼저 Adapter/IPC로 수정 없이 가능한지 조사**, 불가 시 패치는 upstream 제안 우선 | MVP-A + 경계 조사 | 🔧 | OpenVPN §13~15, §45 |
 | PM-9 | 프로토콜 확장 | WireGuard, SDP, NAC, N2SF | MVP-C | | OpenVPN §23 |
 | PM-10 | 암호 확장 | tls-crypt-v2(opcode 10/11), 다른 cipher, KCMVP Provider | MVP-A | | OpenVPN §11, §22 |
+
+## Post-MVP 공통 기반 (F)
+
+특정 PM에 묶이지 않고 여러 PM이 같이 쓰는 기반이다. **사용처가 되는 PM 중 먼저 시작하는 쪽에서** 함께 진행한다. 상세: `plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md`.
+
+| ID | 내용 | 사용처 | 종료 조건 |
+|---|---|---|---|
+| F-1 | State Machine 층 (순환·타이머·상태, sans-I/O 런타임, Machine Validator, `protocol-machine` v1) | PM-4(정본), PM-2b, PM-6, PM-7 | 계획 S1~S4 (`KeepaliveTimer` 동등성 포함) |
+| F-2 | `FlowContext` 일반화 (프로토콜별 슬롯, 블록 `consumes`/`produces` 선언) | PM-2b(STUN), PM-9 | C3 골든 동등성 유지, 데이터 경로 기준선 ±15% 이내, ASan/UBSan |
+| F-3 | Packet / Transition Trace (페이로드·키 비기록 기본, 링 버퍼, JSON Lines) | PM-2b(NAT 랩), PM-6(에디터 디버깅), PM-7(MCP Resource) | 비공개 규칙 테스트, trace 끔 상태 성능 기준선 유지 |
 
 ## 진행 규칙
 

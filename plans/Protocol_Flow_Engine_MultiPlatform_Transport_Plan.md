@@ -109,6 +109,8 @@ Relay는 암호화된 패킷만 중계하며 복호화 키를 갖지 않는다.
 
 초기에는 Transport 인터페이스만 정의하고 Relay 구현은 후속 결정한다.
 
+> 2026-10-06 갱신(D-039): Hole Punching·Relay의 구체 적용안은 `docs/PM2_NAT_Traversal_Scope.md`. Relay는 TURN 표준(RFC 8656) + 수정 없는 coturn을 우선 검토하고, PM-2 진입 시 확정한다.
+
 ---
 
 # 6. TAP 전용 처리

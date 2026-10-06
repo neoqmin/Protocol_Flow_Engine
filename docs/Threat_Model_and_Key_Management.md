@@ -70,3 +70,29 @@
 | 메모리 | iOS Network Extension 한도(약 50MB) 내에서 **여유 포함 상한**을 PM-1 진입 시 정함 (잠정: 한도의 절반 이하) |
 | 바이너리 크기 | 모바일 빌드 기준으로 측정 기록 |
 | 배터리 | 모바일 단계(PM-1)에서 keepalive/wakeup 빈도로 측정 |
+
+## 8. Post-MVP 예정 위협 (계획 단계, 해당 마일스톤 진입 시 확정)
+
+근거: `docs/PM2_NAT_Traversal_Scope.md`(PM-2b), `plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md`(F-1~F-3).
+
+### 8.1 NAT Traversal (PM-2b)
+
+| 위협 | 대응(안) |
+|---|---|
+| STUN 응답 위조·주입(잘못된 공인 주소를 믿게 함) | transaction id는 CSPRNG 96비트, 보낸 요청과 출처·id가 일치하는 응답만 수락. 인증 가능한 경우 MESSAGE-INTEGRITY(-SHA256) 검증. 공인 주소는 **힌트일 뿐**이고 연결 신뢰는 항상 VPN 계층의 TLS/AEAD가 결정한다 |
+| hole punching probe 위조(제3자가 피어인 척 응답) | connectivity check에 시그널링으로 교환한 비밀(KeyRef)로 만든 인증을 붙인다. 인증되지 않은 probe는 `Drop` |
+| 열린 TURN Relay 남용(우리 Relay가 타인 트래픽 중계에 쓰임) | 장기 자격증명 필수, permission은 시그널링으로 확인한 피어 주소에만, 할당 수명·대역폭 한도. 운영 Relay는 자체 구현하지 않고 수정 없는 coturn을 쓰는 것을 우선 |
+| Relay·시그널링 서버의 트래픽 관찰·조작 | §2의 "중간 노드" 원칙 그대로: **신뢰하지 않음**, 종단 간 암호화, Relay는 키를 갖지 않음. N5 종료 조건에 "Relay 쪽 캡처에 평문 없음"을 둔다 |
+| 동의 없는 트래픽 송신(공격 증폭) | ICE consent freshness(RFC 7675)식 주기적 동의 확인. 응답 없는 대상에는 송신 중단. probe 속도 상한 |
+| UPnP/NAT-PMP/PCP로 사용자 공유기 포트 개방 | 기본 비활성, 명시적 사용자 동의, 매핑 수명 최소·종료 시 해제, 개방 내역을 로그에 남김. D-004의 "사용자 관리 네트워크" 전제 |
+| TURN/STUN 자격증명 노출 | Key Reference로만 다룬다. Flow·시나리오 JSON·trace·로그에 평문 금지(Flow JSON v1 `SecretLiteral` 규칙을 시나리오 형식에도 적용) |
+| 시뮬레이터·랩의 악성 입력 | STUN/TURN 코덱은 fuzz 타깃 필수, 속성 개수·길이 상한 |
+
+### 8.2 Flow 모델 확장 (F-1 ~ F-3)
+
+| 위협 | 대응(안) |
+|---|---|
+| 악성/잘못된 State Machine으로 무한 재시도·livelock(DoS) | Validator가 실행 전 거부: `NoExit`, `ImmediateCycle`, `UnboundedRetry`, `WaitWithoutTimeout`. 런타임은 이벤트 큐 상한과 타이머 범위를 강제 |
+| 위조 패킷으로 상태 전이 유도 | 핸들러 Flow가 `Dropped`이면 **전이하지 않는다**(D-019 계약을 상태 층으로 확장) |
+| Trace를 통한 비밀 유출 | 페이로드·키·평문·자격증명은 기록하지 않는 것이 기본이고, 테스트로 고정(알려진 테스트 키·평문 패턴 검색 0건). 바이트 덤프는 테스트 빌드 전용 sink만 |
+| Trace·Machine 메타데이터를 통한 프롬프트 인젝션(PM-7에서 AI가 읽을 때) | trace의 문자열 필드는 데이터로만 취급. PM-7 위협 모델(MCP 계획)에서 상세화 |

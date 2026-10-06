@@ -9,6 +9,8 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 개발 계획: `plans/Protocol_Flow_Engine_OpenVPN_Development_Plan.md`
 - MCP/AI 확장: `plans/Protocol_Flow_Engine_MCP_AI_Extension_Plan.md`
 - 멀티 플랫폼·Transport: `plans/Protocol_Flow_Engine_MultiPlatform_Transport_Plan.md`
+- NAT Traversal 비전(원 계획, 참고용): `plans/Protocol_Flow_Engine_NAT_Traversal_Lab_Development_Plan.md` → **저장소 적용안: `docs/PM2_NAT_Traversal_Scope.md`** (D-039)
+- Flow 모델 확장(State Machine 층·Context 일반화·Trace): `plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md` (D-040)
 - 오픈소스 정책: `docs/Upstream_Extension_Policy.md`
 - 참고 자료: `docs/References_OpenSource_Papers.md`
 - **마일스톤(MVP / Post-MVP)**: `docs/Milestones.md`
@@ -27,8 +29,9 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - 오픈소스 원본 수정 금지, Adapter 경유, 패치는 최후 수단 (`third_party/`는 편집 금지)
 - **MVP에서는 오픈소스 수정이 필요한 작업 제외** (DCO Adapter, Kernel Runtime은 Post-MVP)
 - 언어 **C++17 확정**(D-013), TLS/암호는 **OpenSSL 3.x**(D-014, MVP-A)
+- 제품 방향은 VPN 엔진 유지. NAT Traversal은 PM-2b(참고 범위, 진입 시 재논의), "Protocol Lab" 제품 라인은 PM-6·PM-7 이후 재검토(D-039)
 - MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
-- Control Plane은 MVP에서 일반 코드(Flow 아님). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
+- Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
 - 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지
 
 ## 빌드 / 테스트

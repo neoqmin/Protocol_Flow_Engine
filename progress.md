@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료: A·B·C)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료: A·B·C / Post-MVP 계획: NAT Traversal 적용 범위, Flow 모델 두 층 — D-039, D-040)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -17,6 +17,8 @@
 - [x] **MVP-C / C2** — Block Registry + Validator
 - [x] **MVP-C / C3** — MVP-A 정적 Flow를 JSON으로 로딩해 동일 결과(골든 동등성)
 - [x] **MVP 전체 완료 (MVP-A + MVP-B + MVP-C)** — 다음은 Post-MVP(`docs/Milestones.md`): 진입할 항목 선택 필요
+- [x] **Post-MVP 계획 정리**: NAT Traversal 계획을 PM-2 참고 계획으로 채택하고 적용안 작성([docs/PM2_NAT_Traversal_Scope.md](docs/PM2_NAT_Traversal_Scope.md), D-039), Flow 모델 확장 계획(순환은 State Machine 층에만, [plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md](plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md), D-040), 위협 모델 §8, 참고 자료 §10
+- [ ] **다음 Post-MVP 진입 항목 선택** (후보: PM-1 Windows, PM-4 + F-1, PM-6 에디터 PoC, PM-2). PM-2를 고르면 진입 시 범위 재논의(Scope §7)
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -175,9 +177,18 @@
 # Post-MVP (진입 조건: [docs/Milestones.md](docs/Milestones.md))
 
 - [ ] PM-1 플랫폼 확장 (Windows → Android → macOS → iOS)
-- [ ] PM-2 네트워크 우회 (프록시, Relay, Hole Punching) — Relay 방식 미결
+- [ ] PM-2 네트워크 우회 — **진입 시 범위 재논의** ([docs/PM2_NAT_Traversal_Scope.md](docs/PM2_NAT_Traversal_Scope.md) §7)
+  - [ ] PM-2a HTTP CONNECT / SOCKS5 / Reverse Connect
+  - [ ] PM-2b N0 진입 논의: 피어 역할, 시그널링, PM-4와의 순서, Relay 운영, 유저 공간 NAT
+  - [ ] N1 STUN 코덱 (RFC 8489, RFC 5769 벡터, fuzz) — 선행 F-2
+  - [ ] N2 메모리 NAT 시뮬레이터 (RFC 4787 매핑 3 × 필터링 3, timeout, 포트 할당)
+  - [ ] N3 STUN 클라이언트 + 동작 탐지 (RFC 5780), 수정 없는 coturn 상호운용
+  - [ ] N4 UDP hole punching + 랩용 rendezvous, 조합 매트릭스 예측 = 실측
+  - [ ] N5 TURN 클라이언트 → `Transport`, 폴백 `direct → turn`, Relay 쪽 평문 없음 확인
+  - [ ] N6 실제 NAT 랩 `tools/natlab/` + 시나리오 JSON + 결과 리포트 — 선행 F-3
+  - [ ] N7 VPN 통합 (피어 역할 결정에 따름; TURN 경로는 수정 없는 OpenVPN으로 검증 가능)
 - [ ] PM-3 성능 최적화
-- [ ] PM-4 DSL / Compiler / IR
+- [ ] PM-4 DSL / Compiler / IR — Control Plane 표현은 State Machine 층(F-1, D-040)
 - [ ] PM-5 TAP / L2 Block
 - [ ] PM-6 GUI Flow Editor — **n8n 코드는 사용하지 않음(라이선스), UX만 참고**(D-022). MVP-C 직후 에디터 PoC, Validator를 WASM으로 공유하는 방식 검토. **보안 관리자·운영자도 편집**(D-023): 역할별 권한, 승인 워크플로, 감사 로그, 버전·서명을 PoC부터 포함
 - [ ] PM-7 MCP / AI 계층
@@ -185,13 +196,21 @@
 - [ ] PM-9 프로토콜 확장 (WireGuard / SDP / NAC)
 - [ ] PM-10 암호 확장 (tls-crypt-v2, KCMVP 등)
 
+### Post-MVP 공통 기반 ([plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md](plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md))
+
+- [ ] F-1 State Machine 층 (S0 설계 확정 → S1 `MachineRunner` → S2 Machine Validator → S3 `protocol-machine` v1 → S4 `KeepaliveTimer` 동등성)
+- [ ] F-2 `FlowContext` 일반화 (S6: 프로토콜별 슬롯, `consumes`/`produces`, C3 동등성·성능 기준선 유지)
+- [ ] F-3 Packet / Transition Trace (S5: 페이로드·키 비기록, 링 버퍼, JSON Lines)
+
 ---
 
 ## 확인 필요 / 미결정
 
 - [ ] A3에서 확정: TLS exporter 컨텍스트·바이트 수·방향별 키/nonce tail 분할
 - [ ] 성능 목표 수치, iOS 메모리 상한 (MVP-A 기준선 이후)
-- [ ] Relay 구현 방식 (PM-2 진입 전)
+- [ ] Relay 구현 방식 (PM-2 진입 전) — D-039: TURN 표준 + 수정 없는 coturn 우선
+- [ ] 피어 역할(서버/P2P), NAT Traversal 시그널링, PM-2와 PM-4 순서 (PM-2 진입 전)
+- [ ] State Machine 세부: 계층 상태, guard 범위, DSL 표기 (PM-4 진입 전)
 - [ ] 모바일 TLS/암호 라이브러리 (PM-1 진입 전)
 - [ ] Windows용 암호 라이브러리 연결 (현재 CI는 OpenSSL OFF, PM-1)
 - [ ] MSVC `/WX` 적용 시점

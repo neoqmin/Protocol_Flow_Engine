@@ -73,9 +73,9 @@ PacketBuffer   : headroom/tailroom을 가진 단일 소유 버퍼 (zero-copy 캡
 
 ## 7. 알려진 한계 / 후속
 
-- `FlowContext`가 OpenVPN 헤더에 직접 의존한다(MVP 범위). 프로토콜 확장(PM-9) 시 일반화한다.
+- `FlowContext`가 OpenVPN 헤더에 직접 의존한다(MVP 범위). 첫 비-OpenVPN 프로토콜(PM-2b STUN 또는 PM-9) 전에 일반화한다(F-2, `plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md` §6).
 - 스레딩: `FlowContext`/`PacketBuffer`는 스레드 간 공유하지 않는다(패킷당 하나). Registry/Flow는 빌드 후 읽기 전용이라 공유 가능. 배칭·per-CPU 컨텍스트는 PM-3.
-- Control Plane은 이 Flow가 아니라 일반 코드(D-009).
+- Control Plane은 이 Flow가 아니라 일반 코드(D-009). Post-MVP에서 순환·타이머·상태는 이 Flow 위의 State Machine 층에 둔다(D-040, F-1). 이 Flow 자체는 계속 DAG다.
 - 커널 런타임용 ABI(plain function pointer, 힙 없는 경로)는 PM-8에서 별도 정리.
 
 ---

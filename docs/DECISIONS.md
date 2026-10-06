@@ -43,10 +43,12 @@
 | D-036 | 2026-10-06 | **Validator(C2)**: 로더(구조)와 분리된 **의미 검증**, 모든 이슈는 `{code, path(JSON Pointer), message}`로 한 번에 여러 개. 블록은 `ParamSpec`으로 파라미터를 **선언**하고, **선언 없으면 파라미터 불가**(오타 무음 방지); Decision은 yes/no 둘 다 필요, Action은 continue만; **순환 금지**(패킷당 작업량 유한, 메시지에 루프 경로)·도달 불가 노드 거부; 알 수 없는 블록은 가까운 이름 제안. 그래프 검사는 엔드포인트·포트 오류가 없을 때만(`FlowBuilder`와 동일). `compile_flow`는 **검증 통과 문서만** `FlowBuilder`로 넘겨 Flow를 만들고, 둘의 불일치는 `Internal`(우리 버그)로 보고 — 무작위 6000개 차등 테스트로 불일치 0. 실행 의미는 `FlowBuilder`와 동일(Action은 다음 노드로 암묵 연결, `to:null`=종료) | 확정 |
 | D-037 | 2026-10-06 | **Linux 클라이언트 통합(병렬 A4 해소)**: 같은 A4를 두 세션이 따로 구현해(D-029 `pf_client`+`TunnelSession`, D-030 `pf_vpn`+`DataPath`) 병합 후 **하나로 통합**. 결과 구조: (1) 세션 계층 = `TunnelSession`(D-029, 가짜 서버 11개 테스트·변이 검증 보유) 유지, 내부 데이터 Flow 배선은 `DataPath`(공유 조각, 분류·테스트·벤치용)를 재사용해 **중복 제거**. (2) PAL은 `platform/linux/` 한 곳(master 관례): `TunDevice`(master 것), `UdpTransport`/`TcpStream`(Transport 계약, D-032/D-033), `VpnClient`(폴백→`TunnelSession`→TUN `poll()` 루프). (3) 실행 파일은 `pf_client` 하나(`--proto udp\|tcp\|auto`, 옵션 상위집합). (4) **종료 코드는 D-029 유지**: 세션 상실(제어 실패·ping-restart·사용 가능한 transport 없음)=2, 설정/장치 오류=4(`pf_vpn`의 별도 코드 5 폐기). (5) TUN MTU=`min(푸시 tun-mtu, 1400)`. (6) 테스트 스크립트는 `run_tunnel.sh`(ping·재협상 부하·soak)와 `run_transport_tunnel.sh`(UDP/TCP/폴백)로 분리 유지, 랩 공유라 CTest `RESOURCE_LOCK`. 근거: 통합 후 7개 테스트(unit·platform·flow·regression·interop·터널 2종) ASan/UBSan로 통과, 처리량은 통합 전과 같은 수준 | 확정 |
 | D-038 | 2026-10-06 | **MVP-C 종료 / Flow JSON 동등성(C3)**: Flow JSON을 정적 Flow의 *대체 표현*으로 인정하는 기준 = (1) 그래프가 **완전히 같다**(라벨·블록·타입·핸들러·모든 엣지), (2) 같은 입력에서 **FlowResult·패킷 바이트·플래그·헤더가 같다** — 헤더 골든 전부, 첫 바이트 256종, **실제 OpenVPN 2.6.19 DATA_V2 골든 17개**(복호 평문이 원본과 일치, 재생/변조/잘못된 key_id가 같은 사유로 거부, TX가 와이어 바이트를 정확히 재현). 이 동등성은 `tests/flow/test_flow_json_equivalence_openssl.cpp`가 CI에서 강제한다. 골든 JSON은 `tests/regression/golden/`에 두며 **의도 없이 바꾸지 않는다**. **MVP(A+B+C) 전체 완료.** 운영 코드(`DataPath`/`TunnelSession`)가 아직 코드로 Flow를 조립하는 것은 의도적 — JSON에서 로드해 쓰도록 바꾸는 것은 PM-4(Compiler/IR) 이후의 결정 | 확정 |
+| D-039 | 2026-10-06 | **NAT Traversal 계획 채택 범위**: `plans/Protocol_Flow_Engine_NAT_Traversal_Lab_Development_Plan.md`를 **PM-2의 참고 계획**으로 채택하고, 저장소 결정·구조에 맞춘 적용안은 `docs/PM2_NAT_Traversal_Scope.md`에 둔다. (1) **제품 방향은 바꾸지 않는다**: 주력은 멀티 플랫폼 Flow 기반 VPN 엔진. NAT 랩은 interop 랩처럼 검증 인프라로 시작하고, "Protocol Lab" 제품 라인 여부는 PM-6·PM-7 이후 재검토. (2) PM-2를 **PM-2a**(프록시·Reverse Connect)와 **PM-2b**(NAT Traversal: STUN → NAT 시뮬레이터 → UDP hole punching → TURN Relay → NAT 랩)로 나눈다. ICE 전체·TCP hole punching·UPnP/NAT-PMP/PCP·IPv6는 후속, MCP/AI는 PM-7. (3) 용어 기준은 RFC 4787/5780, 구현 근거는 RFC(D-010), 상호운용 상대는 **수정 없는 coturn**(D-005/D-006 방식). (4) 계획의 §21 디렉터리 구조는 쓰지 않고 기존 구조(`core/`, `platform/`, `tools/`)에 매핑. (5) **최종 범위·순서는 PM-2 진입 시 재논의**(피어 역할, 시그널링, PM-2/PM-4 순서, Relay 운영, 유저 공간 NAT — Scope §7) | 채택(참고 범위) / PM-2 진입 시 확정 |
+| D-040 | 2026-10-06 | **Flow 모델 확장 방향: 두 층 모델** (`plans/Protocol_Flow_Engine_Flow_Model_Extension_Plan.md`). 순환·타이머·상태가 필요하다(재시도, 대기, 재협상, hole punching). 그러나 **패킷 Flow(DAG)에는 순환을 허용하지 않고**, 그 위에 이벤트 구동 **State Machine 층**을 둬서 순환은 거기에만 둔다. 전이마다 기존 Flow(DAG)를 1회 실행하므로 이벤트 처리는 항상 유한하고, 순환은 타이머·패킷·외부 이벤트를 사이에 두어야만 생긴다. 핸들러 Flow가 `Dropped`면 전이하지 않음, `Errored`면 Machine 실패 종료(D-019 계약 확장). Validator는 `NoExit`(livelock)·`ImmediateCycle`·`UnboundedRetry`·`WaitWithoutTimeout` 등을 실행 전에 거부. 파일 형식은 Flow JSON v1을 바꾸지 않고 별도 `protocol-machine` v1(권장안), 커널 런타임은 `protocol-flow`만 받는다. 런타임은 sans-I/O(시계·난수 주입). 공통 선행으로 **F-2 `FlowContext` 일반화**, **F-3 Trace**(페이로드·키 비기록 기본)를 둔다. **D-009는 MVP 결정으로 유지**하고, OpenVPN 제어 로직은 동등성 테스트(1차 `KeepaliveTimer`)로 증명한 뒤에만 옮긴다. 세부(실행 의미, guard 범위, 계층 상태 여부)는 PM-4 진입 시 확정 | 방향 확정 / 세부는 PM-4 |
 
 ## 미결정 사항 (Open Questions)
 
-1. Relay 구현: 자체 서버 vs 기존 도구(수정 없이) 활용 (PM-2)
+1. Relay 구현: 자체 서버 vs 기존 도구(수정 없이) 활용 (PM-2) → D-039에서 "TURN 표준 + 수정 없는 coturn" 우선으로 방향, PM-2 진입 시 확정(`docs/PM2_NAT_Traversal_Scope.md` §7 Q4)
 2. ~~구현 언어~~ → D-013 확정
 3. 모바일 TLS/암호 라이브러리 (BoringSSL 등) (PM-1) — 데스크톱 MVP는 OpenSSL 3.x(D-014)
 4. 플랫폼 지원 순서 (제안: Linux → Windows → Android → macOS → iOS)
@@ -56,6 +58,11 @@
 8. ~~오류 모델 / 버퍼 모델~~ → D-019 확정
 9. ~~에디터 사용자 범위~~ → D-023 확정 (역할 목록·승인 단계 세부는 PM-6 진입 시 설계)
 10. MSVC `/WX` 적용 시점 (현재 CI에서 `/W4`만, 검증 후 결정)
+11. 피어 역할: 우리 구현이 서버/P2P 피어 역할을 할지 (hole punching을 VPN에 쓰려면 필요, D-008은 클라이언트 전용) (PM-2 진입 시)
+12. NAT Traversal 시그널링 방식과 인증 (PM-2 진입 시)
+13. PM-2와 PM-4 순서: State Machine 층(D-040)을 먼저 만들지, PM-2b를 일반 코드로 먼저 할지
+14. State Machine 세부: 계층 상태 지원 여부, guard 표현식 범위, 텍스트 DSL 표기, 에디터 표시 방식 (PM-4)
+15. "Protocol Lab"을 별도 제품 라인으로 둘지 (PM-6·PM-7 이후, D-039)
 
 ## 현재 진행 상황
 

@@ -207,3 +207,37 @@
 - 일부 항목(⚠️)은 검색으로 직접 검증하지 못했으므로 접속/라이선스 확인이 필요.
 - Linux `ovpn` 메인라인 포함 버전(6.16), ovpn-dco-win의 서버 모드 미지원 등은 검색 요약 기준이며, 최신 상태는 각 공식 저장소/릴리스 노트로 재확인할 것.
 - 위 논문 중 2025~2026년 자료(PSMBench, NetConfArena, MCP 보안 논문 등)는 검색 스니펫 기준으로 정리했으며 본문 전체를 읽고 검증한 것은 아님.
+
+---
+
+## 10. NAT Traversal (PM-2b, `docs/PM2_NAT_Traversal_Scope.md`)
+
+추가일: 2026-10-06. 아래 링크는 일반 지식으로 적은 공식 주소다(⚠️, 사용 전 접속·라이선스 확인). 구현 근거는 RFC로 한정한다(D-010). 오픈소스는 상호운용 상대·동작 비교용으로만 쓰고 코드를 복사하지 않는다.
+
+### 10.1 표준
+
+| RFC | 내용 | 쓰는 곳 |
+|---|---|---|
+| RFC 8489 | STUN | N1 코덱, N3 클라이언트 |
+| RFC 5769 | STUN 테스트 벡터 | N1 골든 |
+| RFC 4787 | NAT의 UDP 동작 요구사항(매핑·필터링 용어) | N2 시뮬레이터, 용어 기준 |
+| RFC 5780 | STUN을 이용한 NAT 동작 탐지 | N3 |
+| RFC 5128 | NAT 너머 P2P 통신 기법 현황(hole punching) | N4 |
+| RFC 8656 | TURN | N5 |
+| RFC 6062 | TURN TCP 할당 | 후속(TCP) |
+| RFC 8445 | ICE | 후속 |
+| RFC 7675 | STUN consent freshness | 위협 모델 §8.1 |
+| RFC 7983 | 같은 포트 다중화(첫 바이트 구분) | STUN/OpenVPN 구분 Block |
+| RFC 6886 / RFC 6887 | NAT-PMP / PCP | 후속 |
+| RFC 6888 | CGN 요구사항 | 랩 토폴로지(이중 NAT) |
+
+### 10.2 오픈소스 (상호운용 상대·비교용)
+
+| 이름 | 용도 | 라이선스(확인 필요) | 링크 |
+|---|---|---|---|
+| coturn | STUN/TURN 서버, **수정 없이 상호운용 상대**로 사용 | BSD-3-Clause | ⚠️ https://github.com/coturn/coturn |
+| Stuntman | RFC 5780 동작 탐지 서버/클라이언트 (동작 비교) | Apache-2.0 | ⚠️ https://github.com/jselbie/stunserver |
+| libjuice | 경량 ICE/STUN/TURN (동작 비교) | MPL-2.0 | ⚠️ https://github.com/paullouisageneau/libjuice |
+| libnice | ICE (GLib) (동작 비교) | LGPL-2.1 / MPL-1.1 | ⚠️ https://gitlab.freedesktop.org/libnice/libnice |
+| pion (ice/stun/turn) | Go 구현, 테스트 피어 후보 | MIT | ⚠️ https://github.com/pion |
+| miniupnpc | UPnP IGD 클라이언트 (후속 비교) | BSD-3-Clause | ⚠️ https://github.com/miniupnp/miniupnp |
