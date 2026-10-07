@@ -89,7 +89,7 @@ M0 하드닝 ✅
 | PM-8 | 🔧 OpenVPN DCO / Kernel Runtime | DCO Adapter, Kernel Runtime(Linux/Windows), Shared Memory Crypto. **먼저 Adapter/IPC로 수정 없이 가능한지 조사**, 불가 시 패치는 upstream 제안 우선 | MVP-A + 경계 조사 | 🔧 | OpenVPN §13~15, §45 |
 | PM-9 | 프로토콜 확장 | WireGuard, SDP, NAC, N2SF | MVP-C | | OpenVPN §23 |
 | PM-10 | 암호 확장 | tls-crypt-v2(opcode 10/11), 다른 cipher, KCMVP Provider | MVP-A | | OpenVPN §11, §22 |
-| PM-11 | OpenVPN 호환 서버 | `pf_server`(Linux): 수정 없는 OpenVPN 2.6 클라이언트와 `pf_client`를 모두 받음, MVP와 같은 프로파일. 단일 스레드 이벤트 루프, `server.conf` 부분집합, 인증서 + CRL + 사용자 이름/비밀번호(외부 훅), management 호환 부분집합(D-048). V1 `ControlServer` ✅ → V2 다중 클라이언트·peer-id → V3 서버 데이터 경로·주소 풀 → V4 TCP 서버 → V5 설정 파서 + `pf_server` + 상호운용(수정 없는 클라이언트) → V6 인증 훅·management → V7 soak·성능 (`docs/PM11_OpenVPN_Server_Scope.md`) | PM-2b ①(N1~N3) ✅ | | D-044, D-048 |
+| PM-11 | OpenVPN 호환 서버 | `pf_server`(Linux): 수정 없는 OpenVPN 2.6 클라이언트와 `pf_client`를 모두 받음, MVP와 같은 프로파일. 단일 스레드 이벤트 루프, `server.conf` 부분집합, 인증서 + CRL + 사용자 이름/비밀번호(외부 훅), management 호환 부분집합(D-048). V1 `ControlServer` ✅ → V2 다중 클라이언트·peer-id ✅(D-049) → V3 서버 데이터 경로·주소 풀 → V4 TCP 서버 → V5 설정 파서 + `pf_server` + 상호운용(수정 없는 클라이언트) → V6 인증 훅·management → V7 soak·성능 (`docs/PM11_OpenVPN_Server_Scope.md`) | PM-2b ①(N1~N3) ✅ | | D-044, D-048 |
 
 ## Post-MVP 공통 기반 (F)
 

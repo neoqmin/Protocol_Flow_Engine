@@ -81,6 +81,8 @@ public:
     void commit(uint32_t net_time, uint32_t packet_id);
 
     void set_next_packet_id_for_test(uint32_t id) { tx_next_ = id; }
+    // Continue after packet-ids already used for this peer elsewhere (a stateless reply, D-049). Never goes back.
+    void skip_packet_ids_to(uint32_t id) { if (tx_next_ != 0 && id > tx_next_) tx_next_ = id; }
 
 private:
     TlsCryptKeys keys_;

@@ -86,6 +86,26 @@ ControlPacket ControlClient::base_packet(const KeyState& ks) const {
     return p;
 }
 
+// New acknowledgements first, then recently sent ones again while there is room. Each ack is otherwise sent once, so a
+// lost one costs the peer a retransmission round; and a server that keeps no state before the reset exchange is
+// proven (ServerCore cookie) needs our echo of its session id - carried only with acks - in the packet it receives.
+// A repeated ack is harmless: the receiver ignores ids it is not waiting for.
+std::vector<uint32_t> ControlClient::acks_for_packet(KeyState& ks) {
+    constexpr size_t kRecent = 4;
+    std::vector<uint32_t> acks = ks.receiver.take_acks(kMaxAcksPerPacket);
+    if (!cfg_.repeat_recent_acks) return acks;
+    for (const uint32_t a : acks) {
+        ks.recent_acks.erase(std::remove(ks.recent_acks.begin(), ks.recent_acks.end(), a), ks.recent_acks.end());
+        ks.recent_acks.insert(ks.recent_acks.begin(), a);
+    }
+    if (ks.recent_acks.size() > kRecent) ks.recent_acks.resize(kRecent);
+    for (const uint32_t a : ks.recent_acks) {
+        if (acks.size() >= kMaxAcksPerPacket) break;
+        if (std::find(acks.begin(), acks.end(), a) == acks.end()) acks.push_back(a);
+    }
+    return acks;
+}
+
 void ControlClient::start(uint64_t now_ms, uint32_t) {
     if (state_ != State::Idle) return;
     now_ms_ = now_ms;
@@ -393,7 +413,7 @@ std::vector<std::vector<uint8_t>> ControlClient::poll(uint64_t now_ms, uint32_t 
             p.has_message = true;
             p.message_id = o.id;
             p.payload = o.payload;
-            if (have_server_sid_) p.acks = ks->receiver.take_acks(kMaxAcksPerPacket);
+            if (have_server_sid_) p.acks = acks_for_packet(*ks);
             std::vector<uint8_t> dg;
             if (seal_control_packet(channel_, p, unix_s, dg)) {
                 out.push_back(std::move(dg));
@@ -404,7 +424,7 @@ std::vector<std::vector<uint8_t>> ControlClient::poll(uint64_t now_ms, uint32_t 
         while (have_server_sid_ && ks->receiver.has_pending_acks()) {
             ControlPacket p = base_packet(*ks);
             p.opcode = op(OvpnOpcode::AckV1);
-            p.acks = ks->receiver.take_acks(kMaxAcksPerPacket);
+            p.acks = acks_for_packet(*ks);
             std::vector<uint8_t> dg;
             if (seal_control_packet(channel_, p, unix_s, dg)) {
                 out.push_back(std::move(dg));

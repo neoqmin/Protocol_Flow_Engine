@@ -1,4 +1,5 @@
 #pragma once
+#include "pf/net_address.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -70,15 +71,7 @@ void split_type(uint16_t type, uint16_t& method, Class& cls);
 using TransactionId = std::array<uint8_t, 12>;
 
 // A transport address carried in (XOR-)MAPPED-ADDRESS and similar attributes.
-struct Address {
-    enum class Family : uint8_t { V4 = 0x01, V6 = 0x02 };
-    Family family = Family::V4;
-    std::array<uint8_t, 16> ip{};     // V4 uses the first 4 bytes
-    uint16_t port = 0;
-    bool operator==(const Address& o) const;
-    bool operator!=(const Address& o) const { return !(*this == o); }
-    std::string to_string() const;    // "192.0.2.1:32853", "[2001:db8::1]:32853"
-};
+using Address = NetAddress;
 
 // View of one attribute inside a parsed message (points into the caller's buffer).
 struct Attribute {

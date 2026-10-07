@@ -36,6 +36,7 @@ struct ControlClientConfig {
     size_t server_km2_optional_fields = 3;      // username, password, peer info follow the server's options string (observed: 3)
     size_t max_payload = 1100;                  // TLS bytes per CONTROL_V1 message
     ReliableConfig reliable;
+    bool repeat_recent_acks = true;             // repeat the last acks in later packets (D-049); false = each ack once
     uint32_t push_request_delay_ms = 2000;      // ask for the push if the server has not volunteered it
     uint32_t push_timeout_ms = 20000;           // give up waiting for PUSH_REPLY
 
@@ -118,6 +119,7 @@ private:
         std::map<uint32_t, uint8_t> opcodes;             // message id -> opcode, until delivered in order
         std::vector<std::vector<uint8_t>> backlog;       // TLS bytes waiting for send-window space
         std::vector<uint8_t> app_in;                     // decrypted TLS stream not yet parsed
+        std::vector<uint32_t> recent_acks;               // last ids we acknowledged, repeated in later packets (D-049)
         bool tls_started = false, km_sent = false, km_done = false;
         uint64_t started_ms = 0;
         KeyRef tx_ref{}, rx_ref{};                       // installed data keys (so they can be wiped on retirement)
@@ -138,6 +140,7 @@ private:
     void handle_control_message(KeyState& ks, const std::string& msg);
     bool install_keys(KeyState& ks);
     ControlPacket base_packet(const KeyState& ks) const;
+    std::vector<uint32_t> acks_for_packet(KeyState& ks);
 
     // Renegotiation.
     bool begin_reneg(uint8_t key_id);                    // creates the key state and queues our SOFT_RESET

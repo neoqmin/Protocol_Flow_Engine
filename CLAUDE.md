@@ -32,7 +32,7 @@ OpenVPN 기반의 Block 조립형 VPN/보안 프로토콜 처리 엔진. 작은 
 - **MVP에서는 오픈소스 수정이 필요한 작업 제외** (DCO Adapter, Kernel Runtime은 Post-MVP)
 - 언어 **C++17 확정**(D-013), TLS/암호는 **OpenSSL 3.x**(D-014, MVP-A)
 - 제품 방향은 VPN 엔진 유지(D-039). PM-2 범위 확정(D-044): **OpenVPN 호환 서버 PM-11 신설**, 연결 서버 `pf_connectd`(STUN + 자체 TURN + rendezvous), coturn은 양방향 상호운용 상대. 순서: N1~N3 STUN → PM-11 서버 → N4~N8. "Protocol Lab" 제품 라인은 PM-6·PM-7 이후 재검토
-- PM-11 서버(D-048): 단일 스레드 이벤트 루프, OpenVPN `server.conf` 부분집합(모르는 지시어는 오류), 인증서 + CRL + 사용자 이름/비밀번호(외부 훅, via-file만, 셸 없음), management 호환 부분집합(localhost/Unix 소켓만), Linux 우선. 데이터 키는 인증 수락 뒤에만 설치, 비밀번호는 `SecretString`으로만(로그·trace·management 출력 금지), 재협상은 같은 인증서·사용자 이름만, TX는 클라이언트 ACK 뒤 전환, tls-crypt 재생 창은 세션 바인딩 뒤에만 갱신
+- PM-11 서버(D-048): 단일 스레드 이벤트 루프, OpenVPN `server.conf` 부분집합(모르는 지시어는 오류), 인증서 + CRL + 사용자 이름/비밀번호(외부 훅, via-file만, 셸 없음), management 호환 부분집합(localhost/Unix 소켓만), Linux 우선. 데이터 키는 인증 수락 뒤에만 설치, 비밀번호는 `SecretString`으로만(로그·trace·management 출력 금지), 재협상은 같은 인증서·사용자 이름만, TX는 클라이언트 ACK 뒤 전환, tls-crypt 재생 창은 세션 바인딩 뒤에만 갱신. 다중 클라이언트(D-049): 첫 reset은 상태 없는 HMAC 쿠키로만 답하고 쿠키를 되돌려야 세션 생성, 제어는 주소로·DATA_V2는 peer-id로 라우팅, 세션마다 KeyStore, 클라이언트는 최근 ACK를 반복
 - MVP = Linux 클라이언트 + 수정 없는 OpenVPN 2.6 상호운용(UDP+TUN, TLS1.3+tls-crypt+AES-256-GCM) → TCP/폴백 → Flow JSON/Validator. 나머지는 Post-MVP(`docs/Milestones.md`)
 - Control Plane은 MVP에서 일반 코드(Flow 아님). Post-MVP에서 **순환·타이머·상태는 State Machine 층에만**, 패킷 Flow는 계속 DAG(D-040). v1 구현: 평평한 상태, 카운터 guard, Dropped=비전이·Errored=실패, Validator가 무한 재시도·livelock 거부(D-041). `TunnelSession`은 아직 `KeepaliveTimer` 사용(동등성만 증명). Trace(`pf/trace.h`, D-042)는 이름·결과·길이만 기록하고 바이트·키는 담을 필드가 없다. 끄면 비용 0. Clean-room 구현: 공개 문서/pcap만 근거, OpenVPN 소스 복사 금지, iOS는 GPL 미포함
 - 키는 Key Reference로만 다루고 로그/Flow/테스트 벡터에 평문 금지, 개인 키 커밋 금지

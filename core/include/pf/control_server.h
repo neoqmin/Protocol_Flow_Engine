@@ -79,6 +79,17 @@ public:
     };
 
     static std::unique_ptr<ControlServer> create(ControlServerConfig cfg, std::string& error);
+
+    // A session whose reset exchange already happened statelessly (ServerCore cookie, D-049): the client's HARD_RESET
+    // (message 0) was acknowledged and our HARD_RESET_SERVER (message 0, session id `server_sid`, tls-crypt packet-ids
+    // below `next_tls_crypt_packet_id`) was received - the client proved it by echoing `server_sid`. The session
+    // starts in TlsHandshake, ready for the client's next packet.
+    struct Adopted {
+        std::array<uint8_t, kSessionIdLen> client_sid{}, server_sid{};
+        uint32_t next_tls_crypt_packet_id = 2;
+    };
+    static std::unique_ptr<ControlServer> adopt(ControlServerConfig cfg, const Adopted& a, uint64_t now_ms, std::string& error);
+    const std::array<uint8_t, kSessionIdLen>& client_session_id() const { return client_sid_; }
     ~ControlServer();
     ControlServer(const ControlServer&) = delete;
     ControlServer& operator=(const ControlServer&) = delete;

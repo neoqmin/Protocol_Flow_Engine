@@ -32,7 +32,7 @@
 | 단계 | 내용 | 종료 조건 |
 |---|---|---|
 | V1 ✅ | `ControlServer`(코어, sans-I/O, 클라이언트 1개): HARD_RESET 응답, tls-crypt(서버 방향), TLS 서버(클라이언트 인증서 + **CRL**), key-method 2 서버 측, **클라이언트 능력 검사**(peer info `IV_PROTO`·`IV_CIPHERS`), **비동기 인증 결정**(인증서 신원 + 사용자 이름/비밀번호를 담은 `AuthRequest` → 호출자가 수락/거부, 거부 시 `AUTH_FAILED`), PUSH_REPLY 생성, 키 설치(인증 수락 뒤에만), 재협상(양쪽 시작, **같은 인증서·사용자 이름만 허용**), hand-window. 클라이언트 쪽 `auth-user-pass` 전송도 추가 | 우리 `ControlClient` ↔ `ControlServer` 메모리 시나리오(손실·중복·역순·재협상·인증 거부·폐기된 인증서·능력 부족). `FakeServer`는 결함 주입용 독립 구현으로 남긴다(§3.1) |
-| V2 | 다중 클라이언트: (주소, 세션 id)로 세션 표, **peer-id 할당**, DATA_V2 수신을 peer-id로 분배, 인증 전 상태 할당 최소화(tls-crypt 검증 실패 패킷은 상태를 만들지 않음), 세션 수·IP별·속도 한도, TLS 컨텍스트 공유 | 동시 다수 세션 시뮬레이션, 위조·재생 패킷이 세션을 만들거나 바꾸지 못함, 한도 초과 처리 |
+| V2 ✅ | 다중 클라이언트: (주소, 세션 id)로 세션 표, **peer-id 할당**, DATA_V2 수신을 peer-id로 분배, 인증 전 상태 할당 최소화(tls-crypt 검증 실패 패킷은 상태를 만들지 않음), 세션 수·IP별·속도 한도 (TLS 컨텍스트 공유는 V7로) | 동시 다수 세션 시뮬레이션, 위조·재생 패킷이 세션을 만들거나 바꾸지 못함, 한도 초과 처리 |
 | V3 | 서버 데이터 경로: TUN, **주소 풀**(subnet topology), 클라이언트별 라우팅(TUN → 어느 세션), push 라우트, client-to-client 기본 차단, 소스 주소 위조 거부, 서버 쪽 keepalive(`ping`/`ping-restart`) | 메모리 테스트: 목적지 주소 → 세션 매핑, 풀 고갈·반환, 위조 소스 거부 |
 | V4 | TCP 서버 Transport(accept, 연결별 `FramedTransport`) | 부분 읽기·다중 연결 테스트 |
 | V5 | **설정 파서**(OpenVPN `server.conf` 부분집합, §5.2) + `pf_server` 실행 파일(`platform/linux`, 단일 스레드 이벤트 루프) + **수정 없는 OpenVPN 2.6 클라이언트 상호운용**(netns): UDP·TCP 터널 ping, 클라이언트·서버 재협상, 동시 3 클라이언트, `pf_client` ↔ `pf_server` | ctest 라벨 `protocol`(root, `RESOURCE_LOCK`), 설정 파서 fuzz |
@@ -49,6 +49,15 @@
 - PUSH_REPLY: `ServerPush` → `build_push_reply`(관측한 2.6.19 순서, `protocol-flags tls-ekm`만; `cc-exit`·`dyn-tls-crypt`는 구현하지 않으므로 보내지 않음, 그러면 클라이언트도 정적 tls-crypt 키를 계속 씀). 1024바이트 상한(push-continuation 없음). 클라이언트가 `IV_PROTO`에 REQUEST_PUSH를 광고했거나 PUSH_REQUEST를 보냈으면 수락 즉시 보낸다.
 - 테스트 리그: `tests/support/server_rig.h`(`ServerRig`, `ServerNet`, 실제 데이터 Flow로 키를 확인하는 `DataPathCheck`). 테스트 PKI에 두 번째 클라이언트, 폐기된 클라이언트, CRL을 추가했다.
 - V2로 넘긴 것: 세션별 tls-crypt 재생 상태와 상태 없는 첫 패킷 처리(지금은 서버 1개 = 세션 1개), TLS 컨텍스트 공유(지금은 키 상태마다 `SSL_CTX`를 만듦), peer-id 할당.
+
+### 3.0.1 V2 구현 메모 (D-049)
+
+- `pf/server_core.h`(`core/src/crypto/server_core.cpp`): 소켓 하나에 여러 클라이언트. 제어는 출발지 주소로, DATA_V2는 peer-id로 세션에 보낸다. 세션마다 `KeyStore`와 tls-crypt 재생 창이 따로 있다.
+- 새 클라이언트: HARD_RESET → **상태 없는 응답**(session id = HMAC 쿠키) → 클라이언트가 쿠키를 되돌린 패킷 → 한도 검사 → `ControlServer::adopt`. 쿠키 회신이 유실·거부되면 다시 챌린지한다. 상태 없는 응답의 tls-crypt packet-id는 초마다 다시 시작하는 카운터.
+- 우리 클라이언트는 최근 ACK를 반복해 보내므로(`repeat_recent_acks`) 쿠키 증명이 재전송에도 실린다. 수정 없는 OpenVPN 2.6 서버와도 그대로 상호운용된다.
+- 같은 주소의 다른 클라이언트 session id는 쿠키 왕복을 마쳐야 이전 세션을 바꾼다.
+- 테스트 리그: `tests/support/server_core_rig.h`(`CoreNet`: 주소가 있는 메모리 UDP 망, 여러 `ControlClient`).
+- 남긴 것: 제어 채널 float(NAT 재바인딩은 V3의 인증된 데이터로 `confirm_float`), TLS 컨텍스트 공유와 상태 없는 응답의 속도 제한(V7).
 
 ### 3.1 `FakeServer`를 남기는 이유
 

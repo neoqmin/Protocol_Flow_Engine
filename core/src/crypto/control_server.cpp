@@ -61,6 +61,27 @@ std::unique_ptr<ControlServer> ControlServer::create(ControlServerConfig cfg, st
     return s;
 }
 
+std::unique_ptr<ControlServer> ControlServer::adopt(ControlServerConfig cfg, const Adopted& a, uint64_t now_ms, std::string& error) {
+    std::unique_ptr<ControlServer> s = create(std::move(cfg), error);
+    if (!s) return nullptr;
+    s->now_ms_ = now_ms;
+    KeyState* ks = s->add_state(0, /*initial=*/true);
+    if (ks == nullptr) { error = "cannot create TLS session"; return nullptr; }
+    s->my_sid_ = a.server_sid;
+    s->client_sid_ = a.client_sid;
+    s->have_client_sid_ = true;
+    uint32_t id = 0;
+    ks->sender.enqueue(op(OvpnOpcode::ControlHardResetServerV2), {}, id);
+    ks->sender.on_ack(&id, 1);                                 // the client echoed our session id: it has message 0
+    std::vector<ReliableReceiver::Delivered> delivered;
+    ks->receiver.on_message(0, {}, delivered);                 // its reset, already acknowledged in the stateless reply
+    (void)ks->receiver.take_acks(kMaxAcksPerPacket);
+    s->channel_.skip_packet_ids_to(a.next_tls_crypt_packet_id);
+    s->state_ = State::TlsHandshake;
+    s->hand_deadline_ms_ = now_ms + s->cfg_.hand_window_ms;
+    return s;
+}
+
 ControlServer::KeyState* ControlServer::find_state(uint8_t key_id) {
     auto it = states_.find(key_id);
     return it == states_.end() ? nullptr : it->second.get();

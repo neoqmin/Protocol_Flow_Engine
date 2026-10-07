@@ -2,7 +2,7 @@
 
 > 이 파일이 **작업 추적의 기준**이다. 클라우드/로컬, 사람/Claude 모두 같은 파일을 본다.
 > 마일스톤 정의와 종료 조건은 [docs/Milestones.md](docs/Milestones.md), 결정 이력은 [docs/DECISIONS.md](docs/DECISIONS.md).
-> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 — D-045, N2 — D-046, N3 — D-047, PM-11 진입 결정 + V1 `ControlServer` — D-048)
+> 마지막 갱신: 2026-10-06 (MVP 전체 완료 / Post-MVP: F-1·F-2·F-3 완료, PM-2 N0 — D-044, N1 — D-045, N2 — D-046, N3 — D-047, PM-11 진입 결정 + V1 `ControlServer` — D-048, V2 `ServerCore` — D-049)
 
 범례: `[x]` 완료 · `[ ]` 미착수 · `[~]` 진행 중 · `[!]` 막힘(사유 기재)
 
@@ -28,7 +28,8 @@
 - [x] **PM-2b / N3 STUN 클라이언트** — Binding Machine(RFC 8489 재전송) + RFC 5780 탐지 + 응답기 + `pf_stun`, 시뮬레이터 27개 설정·수정 없는 coturn·실제 커널 NAT로 검증 (D-047)
 - [x] **PM-2b ① 완료 → ② PM-11 진입 결정** — 단일 스레드 이벤트 루프, `server.conf` 부분집합(모르는 지시어는 오류), 인증서 + CRL + 사용자 이름/비밀번호(외부 훅), management 인터페이스 호환 부분집합, Linux 우선 (D-048)
 - [x] **PM-11 / V1 `ControlServer`** — sans-I/O 서버 제어 채널(클라이언트 1개): CRL, 능력 검사, 비동기 인증 결정, 재협상 신원 고정, ACK 확인 뒤 TX 전환, 바인딩 뒤에만 재생 창 갱신, 클라이언트 `auth-user-pass` (D-048)
-- [ ] **다음: PM-11 / V2 다중 클라이언트** — 세션 표, peer-id, 세션별 재생 상태, 상태 없는 첫 패킷, 한도
+- [x] **PM-11 / V2 다중 클라이언트 `ServerCore`** — 상태 없는 HMAC 쿠키 첫 교환, 주소·peer-id 라우팅, 세션별 키·재생 창, peer-id 할당, 세션 수·IP당·속도 한도, 재시작 교체, float 확인, 클라이언트 최근 ACK 반복 (D-049)
+- [ ] **다음: PM-11 / V3 서버 데이터 경로** — TUN, 주소 풀, 목적지 주소 → 세션, 소스 위조 거부, keepalive
 - [x] **A4 구현 중복 해소 (D-037)**: 병렬로 만든 `pf_client`(`TunnelSession`)와 `pf_vpn`(`DataPath`+`VpnClient`)을 `pf_client` 하나로 통합 — 세션은 `TunnelSession`(내부 Flow는 `DataPath` 재사용), PAL은 `platform/linux` 한 곳(TUN + UDP/TCP Transport + 폴백 이벤트 루프). 통합 후 7개 테스트 ASan/UBSan 통과, 처리량 동일 수준
 
 ## 요약
@@ -40,7 +41,7 @@
 | **MVP-A** Linux 클라이언트 + OpenVPN 2.6 상호운용 | ✅ 완료 (A1~A4, 공통 종료 조건) |
 | MVP-B TCP + 폴백 | ✅ 완료 (B1~B3) |
 | MVP-C Flow JSON + Validator | ✅ 완료 (C1~C3) |
-| Post-MVP (PM-1 ~ PM-11, 공통 기반 F) | F-1·F-2·F-3 ✅, PM-2 ①(N0~N3) ✅, PM-11 진행 중(V1 ✅) |
+| Post-MVP (PM-1 ~ PM-11, 공통 기반 F) | F-1·F-2·F-3 ✅, PM-2 ①(N0~N3) ✅, PM-11 진행 중(V1·V2 ✅) |
 
 ---
 
@@ -229,7 +230,7 @@
 - [~] PM-11 OpenVPN 호환 서버 `pf_server` ([docs/PM11_OpenVPN_Server_Scope.md](docs/PM11_OpenVPN_Server_Scope.md), D-044, D-048)
   - [x] 진입 결정 5가지 (D-048)
   - [x] V1 `ControlServer`(sans-I/O, 클라이언트 1개, CRL·능력 검사·비동기 인증·재협상 신원 고정) — `FakeServer`는 결함 주입용으로 유지 (D-048)
-  - [ ] V2 다중 클라이언트·peer-id·인증 전 상태 최소화·세션별 재생 상태·한도
+  - [x] V2 다중 클라이언트·peer-id·인증 전 상태 없음(HMAC 쿠키)·세션별 재생 상태·한도 (D-049)
   - [ ] V3 서버 데이터 경로·주소 풀·keepalive
   - [ ] V4 TCP 서버
   - [ ] V5 설정 파서(`server.conf` 부분집합) + `pf_server` + 수정 없는 OpenVPN 2.6 클라이언트 상호운용
